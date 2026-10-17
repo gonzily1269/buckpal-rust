@@ -1,0 +1,15 @@
+[package]
+name = "buckpal-application"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+buckpal-domain = { path = "../domain" }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

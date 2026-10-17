@@ -1,0 +1,13 @@
+[database]
+url = "sqlite://buckpal.db?mode=rwc"
+max_connections = 5
+busy_timeout_seconds = 5
+
+[server]
+bind_addr = "127.0.0.1:3000"
+
+[transfer]
+threshold = 10000
+
+[logging]
+filter = "info"

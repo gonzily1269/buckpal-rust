@@ -1,0 +1,25 @@
+[package]
+name = "buckpal-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1"
+buckpal-application = { path = "../application" }
+buckpal-domain = { path = "../domain" }
+chrono = { version = "0.4", features = ["clock"] }
+sqlx = { version = "0.9", features = [
+    "macros",
+    "migrate",
+    "runtime-tokio",
+    "sqlite",
+    "tls-rustls-ring-webpki",
+] }
+tracing = "0.1"
+
+[dev-dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt"] }
