@@ -53,7 +53,45 @@ struct PageData {
     /// 残高を含む表示対象口座。
     dashboard: DashboardView,
     /// リダイレクト後に画面へ表示する送金結果コード。
-    status: Option<String>,
+    status: Option<TransferStatus>,
+}
+
+/// 送金処理の結果として画面に表示する状態。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransferStatus {
+    /// 送金が完了した。
+    Success,
+    /// 送金額が無効だった。
+    InvalidAmount,
+    /// 送金元と送金先が同じだった。
+    SameAccount,
+    /// 送金上限を超過した。
+    Threshold,
+    /// 指定された口座が見つからなかった。
+    AccountNotFound,
+    /// 送金元の残高が不足していた。
+    InsufficientFunds,
+    /// 送金後の残高が表現可能な上限を超える。
+    BalanceOverflow,
+    /// 口座残高が同時更新されていた。
+    ConcurrentUpdate,
+}
+
+impl TransferStatus {
+    /// リダイレクトURLに使う、互換性のある結果コードを返す。
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::InvalidAmount => "invalid-amount",
+            Self::SameAccount => "same-account",
+            Self::Threshold => "threshold",
+            Self::AccountNotFound => "account-not-found",
+            Self::InsufficientFunds => "insufficient-funds",
+            Self::BalanceOverflow => "balance-overflow",
+            Self::ConcurrentUpdate => "concurrent-update",
+        }
+    }
 }
 
 /// 送金フォームからAxumがデシリアライズする入力項目。
@@ -71,7 +109,7 @@ pub struct TransferForm {
 #[derive(Debug, Default, Deserialize)]
 pub struct HomeQuery {
     /// 送金結果を識別するコード。未指定なら結果メッセージを表示しない。
-    status: Option<String>,
+    status: Option<TransferStatus>,
 }
 
 /// 口座一覧と送金履歴を取得し、Leptosでホーム画面をSSR描画する。
@@ -120,14 +158,14 @@ pub async fn submit_transfer(
         .send_money(form.source_account_id, form.target_account_id, form.amount)
         .await
     {
-        Ok(()) => "success",
-        Err(SendMoneyError::InvalidAmount) => "invalid-amount",
-        Err(SendMoneyError::SameAccount) => "same-account",
-        Err(SendMoneyError::ThresholdExceeded) => "threshold",
-        Err(SendMoneyError::AccountNotFound) => "account-not-found",
-        Err(SendMoneyError::InsufficientFunds) => "insufficient-funds",
-        Err(SendMoneyError::BalanceOverflow) => "balance-overflow",
-        Err(SendMoneyError::ConcurrentModification) => "concurrent-update",
+        Ok(()) => TransferStatus::Success,
+        Err(SendMoneyError::InvalidAmount) => TransferStatus::InvalidAmount,
+        Err(SendMoneyError::SameAccount) => TransferStatus::SameAccount,
+        Err(SendMoneyError::ThresholdExceeded) => TransferStatus::Threshold,
+        Err(SendMoneyError::AccountNotFound) => TransferStatus::AccountNotFound,
+        Err(SendMoneyError::InsufficientFunds) => TransferStatus::InsufficientFunds,
+        Err(SendMoneyError::BalanceOverflow) => TransferStatus::BalanceOverflow,
+        Err(SendMoneyError::ConcurrentModification) => TransferStatus::ConcurrentUpdate,
         Err(SendMoneyError::PersistenceFailure) => {
             return Err(WebError(
                 anyhow!("application output port failed"),
@@ -135,7 +173,7 @@ pub async fn submit_transfer(
             ));
         }
     };
-    Ok(Redirect::to(&format!("/?status={status}")))
+    Ok(Redirect::to(&format!("/?status={}", status.as_str())))
 }
 
 /// ログへ原因を記録し、利用者向けHTTP 500応答へ変換するWebエラー。
@@ -147,5 +185,29 @@ impl IntoResponse for WebError {
     fn into_response(self) -> Response {
         error!(error = ?self.0, "request failed");
         (StatusCode::INTERNAL_SERVER_ERROR, self.1).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{extract::Query, http::Uri};
+
+    use super::{HomeQuery, TransferStatus};
+
+    /// クエリコードは既知のkebab-case値だけがデシリアライズされる。
+    #[test]
+    fn transfer_status_accepts_known_codes_and_rejects_typos() {
+        let parsed =
+            Query::<HomeQuery>::try_from_uri(&Uri::from_static("/?status=insufficient-funds"));
+        assert!(matches!(
+            parsed,
+            Ok(Query(HomeQuery {
+                status: Some(TransferStatus::InsufficientFunds)
+            }))
+        ));
+        assert!(
+            Query::<HomeQuery>::try_from_uri(&Uri::from_static("/?status=insufficient_fund"))
+                .is_err()
+        );
     }
 }

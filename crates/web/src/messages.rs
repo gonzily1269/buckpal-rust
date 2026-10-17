@@ -5,6 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
+use crate::TransferStatus;
+
 /// 画面とHTTP応答で共通利用するメッセージ一式。
 #[derive(Debug, Clone, Deserialize)]
 pub struct Messages {
@@ -96,8 +98,38 @@ pub struct StatusMessages {
 /// 画面に表示する文言とDaisyUIアラートのクラス。
 #[derive(Debug, Clone, Deserialize)]
 pub struct StatusMessage {
-    pub class: String,
+    pub class: AlertLevel,
     pub text: String,
+}
+
+/// ステータスメッセージで利用できるDaisyUIアラートの種類。
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub enum AlertLevel {
+    /// 成功を表すアラート。
+    #[serde(rename = "alert-success")]
+    Success,
+    /// 警告を表すアラート。
+    #[serde(rename = "alert-warning")]
+    Warning,
+    /// エラーを表すアラート。
+    #[serde(rename = "alert-error")]
+    Error,
+    /// 情報を表すアラート。
+    #[serde(rename = "alert-info")]
+    Info,
+}
+
+impl AlertLevel {
+    /// DaisyUIで利用する固定のCSSクラス名を返す。
+    #[must_use]
+    pub const fn css_class(self) -> &'static str {
+        match self {
+            Self::Success => "alert-success",
+            Self::Warning => "alert-warning",
+            Self::Error => "alert-error",
+            Self::Info => "alert-info",
+        }
+    }
 }
 
 impl Messages {
@@ -113,23 +145,22 @@ impl Messages {
         Ok(Arc::new(messages))
     }
 
-    /// 送金結果コードに対応するメッセージを返す。未知のコードは`None`となる。
+    /// 送金結果に対応するメッセージを返す。
     #[must_use]
-    pub fn status(&self, code: &str) -> Option<&StatusMessage> {
-        match code {
-            "success" => Some(&self.status.success),
-            "invalid-amount" => Some(&self.status.invalid_amount),
-            "same-account" => Some(&self.status.same_account),
-            "threshold" => Some(&self.status.threshold),
-            "account-not-found" => Some(&self.status.account_not_found),
-            "insufficient-funds" => Some(&self.status.insufficient_funds),
-            "balance-overflow" => Some(&self.status.balance_overflow),
-            "concurrent-update" => Some(&self.status.concurrent_update),
-            _ => None,
+    pub fn status(&self, status: TransferStatus) -> &StatusMessage {
+        match status {
+            TransferStatus::Success => &self.status.success,
+            TransferStatus::InvalidAmount => &self.status.invalid_amount,
+            TransferStatus::SameAccount => &self.status.same_account,
+            TransferStatus::Threshold => &self.status.threshold,
+            TransferStatus::AccountNotFound => &self.status.account_not_found,
+            TransferStatus::InsufficientFunds => &self.status.insufficient_funds,
+            TransferStatus::BalanceOverflow => &self.status.balance_overflow,
+            TransferStatus::ConcurrentUpdate => &self.status.concurrent_update,
         }
     }
 
-    /// 必須プレースホルダーと各ステータスのCSSクラスを検証する。
+    /// 必須プレースホルダーを検証する。
     fn validate(&self) -> Result<()> {
         ensure!(
             self.page.account_count.matches("{}").count() == 1,
@@ -151,21 +182,6 @@ impl Messages {
             self.activity.amount.matches("{}").count() == 1,
             "messages.activity.amount must contain exactly one {{}} placeholder"
         );
-        for (code, message) in [
-            ("success", &self.status.success),
-            ("invalid-amount", &self.status.invalid_amount),
-            ("same-account", &self.status.same_account),
-            ("threshold", &self.status.threshold),
-            ("account-not-found", &self.status.account_not_found),
-            ("insufficient-funds", &self.status.insufficient_funds),
-            ("balance-overflow", &self.status.balance_overflow),
-            ("concurrent-update", &self.status.concurrent_update),
-        ] {
-            ensure!(
-                !message.class.is_empty(),
-                "messages.status.{code}.class must not be empty"
-            );
-        }
         Ok(())
     }
 }
@@ -184,20 +200,16 @@ pub fn format_message(template: &str, values: &[&str]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Messages, format_message};
+    use super::{AlertLevel, Messages, format_message};
+    use crate::TransferStatus;
 
-    /// 埋め込みメッセージが読み込まれ、既知コードだけを解決できることを確認する。
+    /// 埋め込みメッセージが読み込まれ、型付き結果とアラートクラスを解決できることを確認する。
     #[test]
     fn loads_and_validates_embedded_messages() {
         let result = Messages::load()
-            .map(|messages| {
-                (
-                    messages.status("success").is_some(),
-                    messages.status("unknown").is_none(),
-                )
-            })
+            .map(|messages| messages.status(TransferStatus::Success).class.css_class())
             .map_err(|error| error.to_string());
-        assert_eq!(result, Ok((true, true)));
+        assert_eq!(result, Ok(AlertLevel::Success.css_class()));
     }
 
     /// 複数のプレースホルダーが指定順に置換されることを確認する。

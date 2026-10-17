@@ -3,7 +3,7 @@
 use leptos::prelude::*;
 
 use super::{
-    PageData,
+    PageData, TransferStatus,
     messages::{Messages, format_message},
     view_model::{AccountView, ActivityView},
 };
@@ -198,14 +198,20 @@ fn ActivityList(
 
 #[component]
 /// 送金結果コードを利用者向けDaisyUIアラートへ変換する。
-fn StatusMessage(status: Option<String>, messages: std::sync::Arc<Messages>) -> impl IntoView {
-    match status.as_deref().and_then(|code| messages.status(code)) {
-        Some(message) => view! {
-            <div class=format!("alert {} my-6", message.class) role="status">
-                {message.text.clone()}
-            </div>
+fn StatusMessage(
+    status: Option<TransferStatus>,
+    messages: std::sync::Arc<Messages>,
+) -> impl IntoView {
+    match status {
+        Some(status) => {
+            let message = messages.status(status);
+            view! {
+                <div class=format!("alert {} my-6", message.class.css_class()) role="status">
+                    {message.text.clone()}
+                </div>
+            }
+            .into_any()
         }
-        .into_any(),
         None => view! { <div></div> }.into_any(),
     }
 }
