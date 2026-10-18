@@ -8,8 +8,10 @@ use async_trait::async_trait;
 
 use buckpal_domain::{Account, Transfer, TransferError};
 
-use super::super::error::{SendMoneyError, TransferRepositoryError};
 use super::super::repository::TransferRepository;
+use super::super::{
+    send_money_error::SendMoneyError, transfer_repository_error::TransferRepositoryError,
+};
 use super::{SendMoneyService, map_repository_error};
 
 #[derive(Default)]

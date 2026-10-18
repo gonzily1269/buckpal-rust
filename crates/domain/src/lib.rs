@@ -2,9 +2,11 @@
 
 mod account;
 mod transfer;
+mod transfer_error;
 
 pub use account::Account;
-pub use transfer::{Transfer, TransferError};
+pub use transfer::Transfer;
+pub use transfer_error::TransferError;
 
 #[cfg(test)]
 #[path = "tests/account.rs"]

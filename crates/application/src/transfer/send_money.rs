@@ -4,7 +4,7 @@ use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 
-use super::error::SendMoneyError;
+use super::send_money_error::SendMoneyError;
 
 /// 入力アダプターが送金ユースケースを呼び出すための契約。
 #[async_trait]

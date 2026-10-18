@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::super::super::{
-    Dashboard, DashboardService, GetDashboardError, GetDashboardUseCase, TransferRepository,
+    Dashboard, GetDashboardError, GetDashboardService, GetDashboardUseCase, TransferRepository,
     TransferRepositoryError,
 };
 
@@ -28,7 +28,7 @@ impl TransferRepository for FailingDashboardRepository {
 /// リポジトリのエラーがユースケース固有のエラーへ変換されることを確認する。
 #[tokio::test]
 async fn translates_repository_failure() {
-    let service = DashboardService::new(Arc::new(FailingDashboardRepository));
+    let service = GetDashboardService::new(Arc::new(FailingDashboardRepository));
     assert_eq!(
         service.get_dashboard().await,
         Err(GetDashboardError::Unavailable)

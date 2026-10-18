@@ -17,7 +17,8 @@ use tracing_subscriber::EnvFilter;
 
 use buckpal_adapters::sqlite::SqliteRepository;
 use buckpal_application::{
-    DashboardService, GetDashboardUseCase, SendMoneyService, SendMoneyUseCase, TransferRepository,
+    GetDashboardService, GetDashboardUseCase, SendMoneyService, SendMoneyUseCase,
+    TransferRepository,
 };
 use buckpal_web::AppState;
 use config::Config;
@@ -51,7 +52,7 @@ async fn main() -> Result<()> {
     let transfer_repository: std::sync::Arc<dyn TransferRepository> = repository.clone();
     let service = SendMoneyService::new(transfer_repository, config.transfer_threshold());
     let send_money: std::sync::Arc<dyn SendMoneyUseCase> = std::sync::Arc::new(service);
-    let dashboard_service = DashboardService::new(repository);
+    let dashboard_service = GetDashboardService::new(repository);
     let get_dashboard: std::sync::Arc<dyn GetDashboardUseCase> =
         std::sync::Arc::new(dashboard_service);
     let state = AppState::new(send_money, get_dashboard);

@@ -2,9 +2,9 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 
-use super::error::{SendMoneyError, TransferRepositoryError};
 use super::repository::TransferRepository;
 use super::send_money::SendMoneyUseCase;
+use super::{send_money_error::SendMoneyError, transfer_repository_error::TransferRepositoryError};
 
 #[cfg(test)]
 #[path = "tests/send_money_service.rs"]
@@ -17,6 +17,19 @@ pub struct SendMoneyService {
     repository: Arc<dyn TransferRepository>,
     /// 1回の送金で許可される最大金額。
     maximum_transfer: u64,
+}
+
+#[async_trait]
+impl SendMoneyUseCase for SendMoneyService {
+    /// ユースケースtraitの呼び出しをサービス実装へ委譲する。
+    async fn send_money(
+        &self,
+        source_account_id: NonZeroU64,
+        target_account_id: NonZeroU64,
+        amount: NonZeroU64,
+    ) -> Result<(), SendMoneyError> {
+        SendMoneyService::send_money(self, source_account_id, target_account_id, amount).await
+    }
 }
 
 impl SendMoneyService {
@@ -66,18 +79,5 @@ fn map_repository_error(error: &TransferRepositoryError) -> SendMoneyError {
         TransferRepositoryError::DashboardLoadFailed
         | TransferRepositoryError::LoadFailed
         | TransferRepositoryError::RecordFailed => SendMoneyError::PersistenceFailure,
-    }
-}
-
-#[async_trait]
-impl SendMoneyUseCase for SendMoneyService {
-    /// ユースケースtraitの呼び出しをサービス実装へ委譲する。
-    async fn send_money(
-        &self,
-        source_account_id: NonZeroU64,
-        target_account_id: NonZeroU64,
-        amount: NonZeroU64,
-    ) -> Result<(), SendMoneyError> {
-        SendMoneyService::send_money(self, source_account_id, target_account_id, amount).await
     }
 }

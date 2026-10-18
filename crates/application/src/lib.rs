@@ -6,7 +6,7 @@ mod dashboard;
 mod transfer;
 
 pub use dashboard::{
-    Dashboard, DashboardAccount, DashboardActivity, DashboardService, GetDashboardError,
+    Dashboard, DashboardAccount, DashboardActivity, GetDashboardError, GetDashboardService,
     GetDashboardUseCase,
 };
 pub use transfer::{

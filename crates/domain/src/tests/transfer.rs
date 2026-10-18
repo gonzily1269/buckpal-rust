@@ -1,7 +1,7 @@
 use std::num::NonZeroU64;
 
 use crate::account::Account;
-use crate::transfer::{Transfer, TransferError};
+use crate::{TransferError, transfer::Transfer};
 
 /// 送金前後の残高と送金額を成立済み送金へ保持することを確認する。
 #[test]

@@ -5,7 +5,7 @@ use std::num::NonZeroU64;
 
 use crate::Dashboard;
 
-use super::error::TransferRepositoryError;
+use super::transfer_repository_error::TransferRepositoryError;
 
 /// 送金に必要な口座の読み込みと、送金記録を担うリポジトリ。
 #[async_trait]

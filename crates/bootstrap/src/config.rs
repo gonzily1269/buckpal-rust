@@ -5,6 +5,10 @@ use std::{env, fs, path::PathBuf};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
+#[cfg(test)]
+#[path = "tests/config.rs"]
+mod tests;
+
 /// アプリケーション起動時に使用する設定。
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -160,7 +164,3 @@ fn optional_env(name: &str) -> Result<Option<String>> {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "tests/config.rs"]
-mod tests;

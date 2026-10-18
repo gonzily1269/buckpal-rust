@@ -29,13 +29,13 @@ bootstrap ──▶ web ─────────────▶ application �
 2. `SendMoneyService`は口座ID、同一口座、金額、送金上限を検証し、正の金額をドメイン型`Money`へ変換します。
 3. `TransferRepository`で口座を読み込み、`Account::withdraw`／`Account::deposit`を使って残高不足とオーバーフローをドメイン層で判断します。
 4. 成立した送金はドメイン型`Transfer`として`TransferRepository`へ渡します。SQLiteアダプターは`BEGIN IMMEDIATE`で書き込みロックを先に取得し、ロック中に残高を読み込んで送金と活動記録をまとめてコミットします。ロック取得前に作られた送金スナップショットが古い場合だけ、安全のため競合として拒否します。
-5. Web層はユースケース結果をHTTPのリダイレクトとステータスコードへ変換します。ホーム画面の取得は`GetDashboardUseCase`契約を介し、`DashboardService`が`TransferRepository`へ委譲します。Web層は受け取ったアプリケーションDTOをWeb所有のViewModelへ変換し、LeptosはそのViewModelだけを描画します。
+5. Web層はユースケース結果をHTTPのリダイレクトとステータスコードへ変換します。ホーム画面の取得は`GetDashboardUseCase`契約を介し、`GetDashboardService`が`TransferRepository`へ委譲します。Web層は受け取ったアプリケーションDTOをWeb所有のViewModelへ変換し、LeptosはそのViewModelだけを描画します。
 
-ホーム画面の読み取りはユースケース契約とリポジトリを通ります。Web層は`GetDashboardUseCase`契約のみを呼び、`DashboardService`は`TransferRepository`の読み取り操作を利用します。リポジトリの失敗は`GetDashboardError`へ変換され、Web層へ技術固有の失敗型を漏らしません。Web層のHTTPハンドラーは`Dashboard`／`DashboardAccount`／`DashboardActivity` DTOを受け取り、ViewModelへ変換します。SQLx行型やSQLite接続型は知りません。また、Leptos UIはアプリケーションDTOへ直接依存しません。
+ホーム画面の読み取りはユースケース契約とリポジトリを通ります。Web層は`GetDashboardUseCase`契約のみを呼び、`GetDashboardService`は`TransferRepository`の読み取り操作を利用します。リポジトリの失敗は`GetDashboardError`へ変換され、Web層へ技術固有の失敗型を漏らしません。Web層のHTTPハンドラーは`Dashboard`／`DashboardAccount`／`DashboardActivity` DTOを受け取り、ViewModelへ変換します。SQLx行型やSQLite接続型は知りません。また、Leptos UIはアプリケーションDTOへ直接依存しません。
 
 ## 依存関係の組み立て
 
-`crates/bootstrap/src/main.rs`が設定を読み込み、SQLite接続プールと`SqliteRepository`を生成します。同じSQLiteアダプターを`TransferRepository`のtrait objectとして`SendMoneyService`／`DashboardService`へ渡し、それぞれを`SendMoneyUseCase`／`GetDashboardUseCase`のtrait objectとしてWebの`AppState`へ渡します。具体型を選択するのはこのcomposition rootだけです。
+`crates/bootstrap/src/main.rs`が設定を読み込み、SQLite接続プールと`SqliteRepository`を生成します。同じSQLiteアダプターを`TransferRepository`のtrait objectとして`SendMoneyService`／`GetDashboardService`へ渡し、それぞれを`SendMoneyUseCase`／`GetDashboardUseCase`のtrait objectとしてWebの`AppState`へ渡します。具体型を選択するのはこのcomposition rootだけです。
 
 アプリケーションの契約は技術固有の型や低レベルのエラー原因を公開しません。SQLiteアダプターは技術的な原因をログに記録し、リポジトリの抽象エラーを返します。ユースケースはそれを業務エラーまたはアプリケーションの永続化失敗へ変換し、Webアダプターにはリポジトリ固有のエラー型を露出しません。Webは業務結果を画面へ変換し、抽象的なシステム失敗をHTTP 500へ変換します。ロック取得はSQLiteに待機させ、口座読込から記録までを1回のRepository操作で完了させます。
 

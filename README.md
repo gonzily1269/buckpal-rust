@@ -63,6 +63,7 @@ cargo run
 ## 構成
 
 - [アーキテクチャの説明](./docs/ARCHITECTURE.md)
+- [ファイル分割・ディレクトリ構成・コーディング規約](./docs/CODING_CONVENTIONS.md)
 - `crates/domain`: 金額・口座など、外部技術に依存しないドメインモデル
 - `crates/application`: 送金・ダッシュボード取得ユースケースとアプリケーション契約
 - `crates/adapters`: SQLiteによるリポジトリ実装と残高・履歴の取得
