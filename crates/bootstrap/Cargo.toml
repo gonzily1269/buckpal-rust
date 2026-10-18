@@ -1,0 +1,33 @@
+[package]
+name = "buckpal-rust"
+version.workspace = true
+edition.workspace = true
+autotests = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+any_spawner = "0.3"
+axum.workspace = true
+serde = { workspace = true, features = ["derive"] }
+sqlx = { workspace = true, features = [
+    "macros",
+    "migrate",
+    "runtime-tokio",
+    "sqlite",
+    "tls-rustls-ring-webpki",
+] }
+toml = "1.1"
+tokio = { workspace = true, features = [
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "signal",
+] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+buckpal-adapters.workspace = true
+buckpal-application.workspace = true
+buckpal-web.workspace = true

@@ -2,7 +2,9 @@
 
 use buckpal_application::{Dashboard, DashboardAccount, DashboardActivity};
 
-use crate::messages::{Messages, format_message};
+#[cfg(test)]
+#[path = "tests/view_model.rs"]
+mod tests;
 
 /// アプリケーションのダッシュボードDTOを画面用の一覧へ変換したモデル。
 #[derive(Clone)]
@@ -17,7 +19,7 @@ pub(crate) struct DashboardView {
 #[derive(Clone)]
 pub(crate) struct AccountView {
     /// 送金フォームで使う口座ID。
-    pub id: i64,
+    pub id: std::num::NonZeroU64,
     /// 画面に表示する書式付き口座ID。
     pub id_label: String,
     /// 口座名。
@@ -29,62 +31,52 @@ pub(crate) struct AccountView {
 /// 画面に表示する送金履歴情報。
 #[derive(Clone)]
 pub(crate) struct ActivityView {
-    /// メッセージ定義を適用した送金説明。
+    /// 送金元と送金先を含む送金説明。
     pub description: String,
     /// 履歴の記録日時。
     pub created_at: String,
-    /// 通貨表記を適用した送金額。
+    /// 通貨表記を付けた送金額。
     pub amount: String,
 }
 
 impl DashboardView {
-    /// アプリケーションDTO一式をメッセージ定義に基づき画面用に変換する。
-    pub fn new(dashboard: Dashboard, messages: &Messages) -> Self {
+    /// アプリケーションDTO一式を画面用に変換する。
+    pub fn new(dashboard: Dashboard) -> Self {
         Self {
-            accounts: dashboard
-                .accounts
-                .into_iter()
-                .map(|account| account_view(account, messages))
-                .collect(),
+            accounts: dashboard.accounts.into_iter().map(account_view).collect(),
             activities: dashboard
                 .activities
                 .into_iter()
-                .map(|activity| activity_view(activity, messages))
+                .map(activity_view)
                 .collect(),
         }
     }
 }
 
 /// アプリケーションの口座DTOを画面表示向けに整形する。
-fn account_view(account: DashboardAccount, messages: &Messages) -> AccountView {
+fn account_view(account: DashboardAccount) -> AccountView {
     AccountView {
         id: account.id,
-        id_label: format_message(&messages.account.id, &[&format!("{:02}", account.id)]),
+        id_label: format!("ACCOUNT {:02}", account.id),
         name: account.name,
         balance: format_amount(account.balance),
     }
 }
 
 /// アプリケーションの送金DTOを画面表示向けに整形する。
-fn activity_view(activity: DashboardActivity, messages: &Messages) -> ActivityView {
+fn activity_view(activity: DashboardActivity) -> ActivityView {
     ActivityView {
-        description: format_message(
-            &messages.activity.transfer,
-            &[
-                &activity.source_account_id.to_string(),
-                &activity.target_account_id.to_string(),
-            ],
+        description: format!(
+            "口座 {} → 口座 {}",
+            activity.source_account_id, activity.target_account_id
         ),
         created_at: activity.created_at,
-        amount: format_message(
-            &messages.activity.amount,
-            &[&format_amount(activity.amount)],
-        ),
+        amount: format!("−{}", format_amount(activity.amount)),
     }
 }
 
 /// 整数金額に3桁ごとのカンマを付けた文字列を返す。
-fn format_amount(amount: i64) -> String {
+fn format_amount(amount: u64) -> String {
     let digits = amount.to_string();
     let mut formatted = String::with_capacity(digits.len() + digits.len() / 3);
     for (index, digit) in digits.chars().enumerate() {
@@ -94,18 +86,4 @@ fn format_amount(amount: i64) -> String {
         formatted.push(digit);
     }
     formatted
-}
-
-#[cfg(test)]
-mod tests {
-    use super::format_amount;
-
-    /// 3桁区切りが金額の桁数に応じて正しく入ることを確認する。
-    #[test]
-    fn formats_amounts_for_display() {
-        assert_eq!(format_amount(0), "0");
-        assert_eq!(format_amount(500), "500");
-        assert_eq!(format_amount(5_000), "5,000");
-        assert_eq!(format_amount(1_000_000), "1,000,000");
-    }
 }

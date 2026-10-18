@@ -1,8 +1,11 @@
 //! `Axum`のHTTPハンドラーとWeb層の状態を提供するWebアダプター。
 
-pub mod messages;
 mod ui;
 mod view_model;
+
+#[cfg(test)]
+#[path = "tests/web.rs"]
+mod tests;
 
 use anyhow::anyhow;
 use axum::{
@@ -12,13 +15,13 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
+use std::num::NonZeroU64;
 use tracing::error;
 
 use buckpal_application::{
     GetDashboardError, GetDashboardUseCase, SendMoneyError, SendMoneyUseCase,
 };
 
-use messages::Messages;
 use view_model::DashboardView;
 
 /// Web層からユースケースと口座データを利用するための共有状態。
@@ -28,21 +31,17 @@ pub struct AppState {
     send_money: std::sync::Arc<dyn SendMoneyUseCase>,
     /// 画面に表示する口座と取引を取得するリポジトリ。
     dashboard: std::sync::Arc<dyn GetDashboardUseCase>,
-    /// UIとHTTP応答で共通利用するメッセージ定義。
-    messages: std::sync::Arc<Messages>,
 }
 
 impl AppState {
-    /// アプリケーション入力ポート、ダッシュボード出力ポート、文言をHTTP状態へ束ねる。
+    /// アプリケーションユースケースと文言をHTTP状態へ束ねる。
     pub fn new(
         send_money: std::sync::Arc<dyn SendMoneyUseCase>,
         dashboard: std::sync::Arc<dyn GetDashboardUseCase>,
-        messages: std::sync::Arc<Messages>,
     ) -> Self {
         Self {
             send_money,
             dashboard,
-            messages,
         }
     }
 }
@@ -98,11 +97,11 @@ impl TransferStatus {
 #[derive(Debug, Deserialize)]
 pub struct TransferForm {
     /// 送金元口座のID。
-    source_account_id: i64,
+    source_account_id: NonZeroU64,
     /// 送金先口座のID。
-    target_account_id: i64,
+    target_account_id: NonZeroU64,
     /// 送金する整数単位の金額。
-    amount: i64,
+    amount: NonZeroU64,
 }
 
 /// ホーム画面のクエリ文字列から読み取る送金結果。
@@ -124,11 +123,13 @@ pub async fn home(
 ) -> Result<Response, WebError> {
     let dashboard = state.dashboard.get_dashboard().await.map_err(|error| {
         let message = match error {
-            GetDashboardError::Unavailable => state.messages.errors.internal_server_error.clone(),
+            GetDashboardError::Unavailable => {
+                "処理中にエラーが発生しました。サーバーログを確認してください。".to_owned()
+            }
         };
         WebError(anyhow!(error), message)
     })?;
-    let dashboard = DashboardView::new(dashboard, &state.messages);
+    let dashboard = DashboardView::new(dashboard);
     let page = PageData {
         dashboard,
         status: query.status,
@@ -137,7 +138,6 @@ pub async fn home(
     let handler = leptos_axum::render_app_to_stream_with_context(
         move || {
             leptos::prelude::provide_context(page.clone());
-            leptos::prelude::provide_context(state.messages.clone());
         },
         ui::App,
     );
@@ -148,7 +148,7 @@ pub async fn home(
 ///
 /// # Errors
 ///
-/// 送金ポートが失敗した場合、利用者向けHTTPエラーを返す。
+/// 送金ユースケースが失敗した場合、利用者向けHTTPエラーを返す。
 pub async fn submit_transfer(
     State(state): State<AppState>,
     Form(form): Form<TransferForm>,
@@ -165,11 +165,10 @@ pub async fn submit_transfer(
         Err(SendMoneyError::AccountNotFound) => TransferStatus::AccountNotFound,
         Err(SendMoneyError::InsufficientFunds) => TransferStatus::InsufficientFunds,
         Err(SendMoneyError::BalanceOverflow) => TransferStatus::BalanceOverflow,
-        Err(SendMoneyError::ConcurrentModification) => TransferStatus::ConcurrentUpdate,
         Err(SendMoneyError::PersistenceFailure) => {
             return Err(WebError(
-                anyhow!("application output port failed"),
-                state.messages.errors.internal_server_error.clone(),
+                anyhow!("application use case failed"),
+                "処理中にエラーが発生しました。サーバーログを確認してください。".to_owned(),
             ));
         }
     };
@@ -185,29 +184,5 @@ impl IntoResponse for WebError {
     fn into_response(self) -> Response {
         error!(error = ?self.0, "request failed");
         (StatusCode::INTERNAL_SERVER_ERROR, self.1).into_response()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use axum::{extract::Query, http::Uri};
-
-    use super::{HomeQuery, TransferStatus};
-
-    /// クエリコードは既知のkebab-case値だけがデシリアライズされる。
-    #[test]
-    fn transfer_status_accepts_known_codes_and_rejects_typos() {
-        let parsed =
-            Query::<HomeQuery>::try_from_uri(&Uri::from_static("/?status=insufficient-funds"));
-        assert!(matches!(
-            parsed,
-            Ok(Query(HomeQuery {
-                status: Some(TransferStatus::InsufficientFunds)
-            }))
-        ));
-        assert!(
-            Query::<HomeQuery>::try_from_uri(&Uri::from_static("/?status=insufficient_fund"))
-                .is_err()
-        );
     }
 }

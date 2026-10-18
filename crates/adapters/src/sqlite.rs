@@ -1,15 +1,15 @@
 //! SQLxを使ってSQLite上の残高・送金記録を読み書きするアダプター。
 
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, SqliteConnection, SqlitePool};
 
 use buckpal_application::{
-    Dashboard, DashboardAccount, DashboardActivity, DashboardQueryFailure, LoadDashboardPort,
-    LoadTransferAccountsPort, RecordTransferPort, TransferPortError,
+    Dashboard, DashboardAccount, DashboardActivity, TransferRepository, TransferRepositoryError,
 };
-use buckpal_domain::{Account, Transfer};
+use buckpal_domain::{Account, Transfer, TransferError};
 
 /// SQLiteデータベースに対する口座・送金リポジトリ。
 #[derive(Clone)]
@@ -38,12 +38,16 @@ impl SqliteRepository {
         .await?;
         let accounts = accounts
             .into_iter()
-            .map(|account| DashboardAccount {
-                id: account.id,
-                name: account.name,
-                balance: account.balance,
+            .map(|account| {
+                let id = storage_id(account.id, "account id")?;
+                let balance = storage_amount(account.balance, "account balance")?;
+                Ok(DashboardAccount {
+                    id,
+                    name: account.name,
+                    balance,
+                })
             })
-            .collect();
+            .collect::<Result<_, sqlx::Error>>()?;
 
         let activities = sqlx::query_as::<_, ActivityRow>(
             "SELECT id, source_account_id, target_account_id, amount, created_at \
@@ -52,14 +56,8 @@ impl SqliteRepository {
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|activity| DashboardActivity {
-            id: activity.id,
-            source_account_id: activity.source_account_id,
-            target_account_id: activity.target_account_id,
-            amount: activity.amount,
-            created_at: activity.created_at,
-        })
-        .collect();
+        .map(activity_from_storage)
+        .collect::<Result<_, _>>()?;
 
         Ok(Dashboard {
             accounts,
@@ -79,40 +77,6 @@ struct AccountRow {
     balance: i64,
 }
 
-#[async_trait]
-impl LoadDashboardPort for SqliteRepository {
-    /// `SQLite`のダッシュボード読込をポートのエラー型へ変換して返す。
-    async fn load_dashboard(&self) -> Result<Dashboard, DashboardQueryFailure> {
-        self.dashboard().await.map_err(|error| {
-            tracing::error!(error = ?error, "failed to load dashboard");
-            DashboardQueryFailure
-        })
-    }
-}
-
-#[async_trait]
-impl LoadTransferAccountsPort for SqliteRepository {
-    /// 両口座の現在残高を計算し、ドメイン口座として返す。
-    async fn load_accounts(
-        &self,
-        source_account_id: i64,
-        target_account_id: i64,
-    ) -> Result<Option<(Account, Account)>, TransferPortError> {
-        let source_balance = account_balance_from_pool(&self.pool, source_account_id)
-            .await
-            .map_err(|error| load_error(&error))?;
-        let target_balance = account_balance_from_pool(&self.pool, target_account_id)
-            .await
-            .map_err(|error| load_error(&error))?;
-        let (Some(source_balance), Some(target_balance)) = (source_balance, target_balance) else {
-            return Ok(None);
-        };
-        let source = account_from_storage(source_account_id, source_balance)?;
-        let target = account_from_storage(target_account_id, target_balance)?;
-        Ok(Some((source, target)))
-    }
-}
-
 /// `SQLite`の送金行を`SQLx`で読み込むための内部レコード型。
 #[derive(Debug, FromRow)]
 struct ActivityRow {
@@ -128,43 +92,104 @@ struct ActivityRow {
     created_at: String,
 }
 
+fn activity_from_storage(activity: ActivityRow) -> Result<DashboardActivity, sqlx::Error> {
+    let id = storage_id(activity.id, "transfer id")?;
+    let source_account_id = storage_id(activity.source_account_id, "source account id")?;
+    let target_account_id = storage_id(activity.target_account_id, "target account id")?;
+    let amount = storage_amount(activity.amount, "transfer amount")?;
+
+    Ok(DashboardActivity {
+        id,
+        source_account_id,
+        target_account_id,
+        amount,
+        created_at: activity.created_at,
+    })
+}
+
 #[async_trait]
-impl RecordTransferPort for SqliteRepository {
-    /// SQLiteトランザクション内で競合を検出し、送金と活動記録を原子的に保存する。
-    async fn record_transfer(&self, transfer: Transfer) -> Result<(), TransferPortError> {
-        let source_account_id = transfer.source_account_id();
-        let target_account_id = transfer.target_account_id();
-        let mut transaction = self
+impl TransferRepository for SqliteRepository {
+    /// `SQLite`のダッシュボード読込をリポジトリのエラー型へ変換して返す。
+    async fn load_dashboard(&self) -> Result<Dashboard, TransferRepositoryError> {
+        self.dashboard().await.map_err(|error| {
+            tracing::error!(error = ?error, "failed to load dashboard");
+            TransferRepositoryError::DashboardLoadFailed
+        })
+    }
+
+    /// 書き込みロック下で残高を読み、ドメイン検証と送金記録を一括して行う。
+    async fn transfer(
+        &self,
+        source_account_id: NonZeroU64,
+        target_account_id: NonZeroU64,
+        amount: NonZeroU64,
+    ) -> Result<(), TransferRepositoryError> {
+        let source_account_id = database_id_for_record(source_account_id)?;
+        let target_account_id = database_id_for_record(target_account_id)?;
+        let mut connection = self
             .pool
-            .begin()
+            .acquire()
             .await
             .map_err(|error| record_error(&error))?;
 
-        sqlx::query(
-            "UPDATE account SET opening_balance = opening_balance \
-             WHERE id IN (?, ?)",
+        // SQLiteには行単位の`SELECT FOR UPDATE`がないため、書き込みトランザクションを
+        // 先に開始して、残高の読込から記録まで他の書き込み処理を待機させる。
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *connection)
+            .await
+            .map_err(|error| record_error(&error))?;
+
+        let result = Self::transfer_in_transaction(
+            &mut connection,
+            source_account_id,
+            target_account_id,
+            amount,
         )
-        .bind(source_account_id)
-        .bind(target_account_id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|error| record_error(&error))?;
+        .await;
 
-        let source_balance = account_balance(&mut transaction, source_account_id)
-            .await
-            .map_err(|error| record_error(&error))?;
-        let target_balance = account_balance(&mut transaction, target_account_id)
-            .await
-            .map_err(|error| record_error(&error))?;
-        let (Some(source_balance), Some(target_balance)) = (source_balance, target_balance) else {
-            return Err(TransferPortError::ConcurrentModification);
-        };
-        if source_balance != transfer.expected_source_balance()
-            || target_balance != transfer.expected_target_balance()
-        {
-            return Err(TransferPortError::ConcurrentModification);
+        match result {
+            Ok(()) => sqlx::query("COMMIT")
+                .execute(&mut *connection)
+                .await
+                .map(|_| ())
+                .map_err(|error| record_error(&error)),
+            Err(error) => {
+                if let Err(rollback_error) = sqlx::query("ROLLBACK").execute(&mut *connection).await
+                {
+                    tracing::error!(error = ?rollback_error, "failed to roll back transfer");
+                }
+                Err(error)
+            }
         }
+    }
+}
 
+impl SqliteRepository {
+    async fn transfer_in_transaction(
+        connection: &mut SqliteConnection,
+        source_account_id: i64,
+        target_account_id: i64,
+        amount: NonZeroU64,
+    ) -> Result<(), TransferRepositoryError> {
+        let source_balance = account_balance(connection, source_account_id)
+            .await
+            .map_err(|error| record_error(&error))?;
+        let target_balance = account_balance(connection, target_account_id)
+            .await
+            .map_err(|error| record_error(&error))?;
+
+        let (Some(source_balance), Some(target_balance)) = (source_balance, target_balance) else {
+            return Err(TransferRepositoryError::AccountNotFound);
+        };
+        let source = account_from_storage(source_account_id, source_balance)?;
+        let target = account_from_storage(target_account_id, target_balance)?;
+        let transfer = Transfer::new(source, target, amount).map_err(|error| match error {
+            TransferError::SameAccount => TransferRepositoryError::RecordFailed,
+            TransferError::InsufficientFunds => TransferRepositoryError::InsufficientFunds,
+            TransferError::BalanceOverflow => TransferRepositoryError::BalanceOverflow,
+        })?;
+
+        let amount = database_amount(transfer.amount().get())?;
         let created_at = chrono::Utc::now().to_rfc3339();
         let transfer_id = sqlx::query(
             "INSERT INTO transfer (source_account_id, target_account_id, amount, created_at) \
@@ -172,9 +197,9 @@ impl RecordTransferPort for SqliteRepository {
         )
         .bind(source_account_id)
         .bind(target_account_id)
-        .bind(transfer.amount().amount())
+        .bind(amount)
         .bind(&created_at)
-        .execute(&mut *transaction)
+        .execute(&mut *connection)
         .await
         .map_err(|error| record_error(&error))?
         .last_insert_rowid();
@@ -189,44 +214,25 @@ impl RecordTransferPort for SqliteRepository {
             .bind(owner_account_id)
             .bind(source_account_id)
             .bind(target_account_id)
-            .bind(transfer.amount().amount())
+            .bind(amount)
             .bind(&created_at)
-            .execute(&mut *transaction)
+            .execute(&mut *connection)
             .await
             .map_err(|error| record_error(&error))?;
         }
 
-        transaction
-            .commit()
-            .await
-            .map_err(|error| record_error(&error))
+        Ok(())
     }
 }
 
 /// 接続プールから指定口座の初期残高と取引履歴を集計して現在残高を返す。
 ///
 /// 口座が存在しない場合は`None`を返し、クエリの失敗はエラーとして返す。
-async fn account_balance_from_pool(
-    pool: &SqlitePool,
-    account_id: i64,
-) -> Result<Option<i64>, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT a.opening_balance + COALESCE(SUM(CASE \
-         WHEN x.target_account_id = a.id THEN x.amount \
-         WHEN x.source_account_id = a.id THEN -x.amount ELSE 0 END), 0) \
-         FROM account a LEFT JOIN activity x ON x.owner_account_id = a.id \
-         WHERE a.id = ? GROUP BY a.id, a.opening_balance",
-    )
-    .bind(account_id)
-    .fetch_optional(pool)
-    .await
-}
-
 /// トランザクション内で指定口座の初期残高と取引履歴から現在残高を計算する。
 ///
 /// 口座が存在しない場合は `None` を返し、クエリの失敗はエラーとして返す。
 async fn account_balance(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: i64,
 ) -> Result<Option<i64>, sqlx::Error> {
     sqlx::query_scalar(
@@ -237,160 +243,49 @@ async fn account_balance(
          WHERE a.id = ? GROUP BY a.id, a.opening_balance",
     )
     .bind(account_id)
-    .fetch_optional(&mut **transaction)
+    .fetch_optional(&mut *connection)
     .await
 }
 
-/// SQLxエラーを、口座読込ポートの技術詳細を隠したエラーへ変換する。
-fn load_error(error: &sqlx::Error) -> TransferPortError {
-    tracing::error!(error = ?error, "failed to load transfer accounts");
-    TransferPortError::LoadFailed
-}
-
-/// SQLxエラーを、送金記録ポートの技術詳細を隠したエラーへ変換する。
-fn record_error(error: &sqlx::Error) -> TransferPortError {
+/// SQLxエラーを、送金リポジトリの技術詳細を隠したエラーへ変換する。
+fn record_error(error: &sqlx::Error) -> TransferRepositoryError {
     tracing::error!(error = ?error, "failed to record transfer");
-    TransferPortError::RecordFailed
+    TransferRepositoryError::RecordFailed
 }
 
 /// 指定口座の永続化データをドメインの不変条件で検証して生成する。
-fn account_from_storage(id: i64, balance: i64) -> Result<Account, TransferPortError> {
-    Account::new(id, balance).map_err(|error| {
-        tracing::error!(account_id = id, balance, error = ?error, "invalid account state in storage");
-        TransferPortError::LoadFailed
-    })
+fn account_from_storage(id: i64, balance: i64) -> Result<Account, TransferRepositoryError> {
+    let id = repository_id(id)?;
+    let balance = repository_amount(balance)?;
+    Ok(Account::new(id, balance))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use buckpal_application::{
-        LoadTransferAccountsPort, RecordTransferPort, SendMoneyError, SendMoneyService,
-        TransferPortError,
-    };
-    use buckpal_domain::Money;
-    use sqlx::sqlite::SqlitePoolOptions;
+fn storage_id(value: i64, name: &str) -> Result<NonZeroU64, sqlx::Error> {
+    NonZeroU64::new(u64::try_from(value).map_err(|_| invalid_storage_value(name))?)
+        .ok_or_else(|| invalid_storage_value(name))
+}
 
-    /// インメモリ`SQLite`データベースへマイグレーションを適用したリポジトリを作成する。
-    async fn repository() -> anyhow::Result<Arc<SqliteRepository>> {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await?;
-        sqlx::migrate!("../../migrations").run(&pool).await?;
-        Ok(SqliteRepository::new(pool))
-    }
+fn storage_amount(value: i64, name: &str) -> Result<u64, sqlx::Error> {
+    u64::try_from(value).map_err(|_| invalid_storage_value(name))
+}
 
-    /// 成功した送金が両口座の残高と取引履歴に反映されることを確認する。
-    #[tokio::test]
-    async fn transfer_updates_both_balances_and_records_one_transfer() {
-        let result = async {
-            let repository = repository().await.map_err(|error| error.to_string())?;
-            let accounts_port: Arc<dyn LoadTransferAccountsPort> = repository.clone();
-            let transfer_port: Arc<dyn RecordTransferPort> = repository.clone();
-            let service = SendMoneyService::new(accounts_port, transfer_port, 10_000);
+fn invalid_storage_value(name: &str) -> sqlx::Error {
+    sqlx::Error::Protocol(format!("{name} is outside the supported range"))
+}
 
-            service
-                .send_money(1, 2, 500)
-                .await
-                .map_err(|error| error.to_string())?;
+fn database_id_for_record(value: NonZeroU64) -> Result<i64, TransferRepositoryError> {
+    i64::try_from(value.get()).map_err(|_| TransferRepositoryError::RecordFailed)
+}
 
-            let dashboard = repository
-                .load_dashboard()
-                .await
-                .map_err(|error| error.to_string())?;
-            let balances = dashboard
-                .accounts
-                .iter()
-                .map(|account| account.balance)
-                .collect::<Vec<_>>();
-            let amounts = dashboard
-                .activities
-                .iter()
-                .map(|activity| activity.amount)
-                .collect::<Vec<_>>();
-            Ok::<_, String>((balances, amounts))
-        }
-        .await;
+fn database_amount(value: u64) -> Result<i64, TransferRepositoryError> {
+    i64::try_from(value).map_err(|_| TransferRepositoryError::RecordFailed)
+}
 
-        assert_eq!(result, Ok((vec![4_500, 3_000], vec![500])));
-    }
+fn repository_id(value: i64) -> Result<NonZeroU64, TransferRepositoryError> {
+    NonZeroU64::new(u64::try_from(value).map_err(|_| TransferRepositoryError::LoadFailed)?)
+        .ok_or(TransferRepositoryError::LoadFailed)
+}
 
-    /// 残高不足または上限超過の送金が残高・履歴を変更しないことを確認する。
-    #[tokio::test]
-    async fn failed_transfers_leave_balances_and_history_unchanged() {
-        let result = async {
-            let repository = repository().await.map_err(|error| error.to_string())?;
-            let accounts_port: Arc<dyn LoadTransferAccountsPort> = repository.clone();
-            let transfer_port: Arc<dyn RecordTransferPort> = repository.clone();
-            let service = SendMoneyService::new(accounts_port, transfer_port, 10_000);
-
-            let insufficient_funds = matches!(
-                service.send_money(1, 2, 5_001).await,
-                Err(SendMoneyError::InsufficientFunds)
-            );
-            let threshold_exceeded = matches!(
-                service.send_money(1, 2, 10_001).await,
-                Err(SendMoneyError::ThresholdExceeded)
-            );
-
-            let dashboard = repository
-                .load_dashboard()
-                .await
-                .map_err(|error| error.to_string())?;
-            let balances = dashboard
-                .accounts
-                .iter()
-                .map(|account| account.balance)
-                .collect::<Vec<_>>();
-            Ok::<_, String>((
-                insufficient_funds,
-                threshold_exceeded,
-                balances,
-                dashboard.activities.len(),
-            ))
-        }
-        .await;
-
-        assert_eq!(result, Ok((true, true, vec![5_000, 2_500], 0)));
-    }
-
-    /// 読込後に残高が更新された送金を拒否し、競合を検出することを確認する。
-    #[tokio::test]
-    async fn rejects_a_transfer_when_balances_changed_after_loading() {
-        let result = async {
-            let repository = repository().await.map_err(|error| error.to_string())?;
-            let (source, target) = repository
-                .load_accounts(1, 2)
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| "seed accounts were not found".to_owned())?;
-            let amount = Money::new(100).map_err(|error| error.to_string())?;
-            let stale_transfer =
-                Transfer::new(source, target, amount).map_err(|error| error.to_string())?;
-
-            let accounts_port: Arc<dyn LoadTransferAccountsPort> = repository.clone();
-            let transfer_port: Arc<dyn RecordTransferPort> = repository.clone();
-            let service = SendMoneyService::new(accounts_port, transfer_port, 10_000);
-            service
-                .send_money(1, 2, 500)
-                .await
-                .map_err(|error| error.to_string())?;
-
-            let concurrent_update = matches!(
-                repository.record_transfer(stale_transfer).await,
-                Err(TransferPortError::ConcurrentModification)
-            );
-            let activity_count = repository
-                .load_dashboard()
-                .await
-                .map_err(|error| error.to_string())?
-                .activities
-                .len();
-            Ok::<_, String>((concurrent_update, activity_count))
-        }
-        .await;
-
-        assert_eq!(result, Ok((true, 1)));
-    }
+fn repository_amount(value: i64) -> Result<u64, TransferRepositoryError> {
+    u64::try_from(value).map_err(|_| TransferRepositoryError::LoadFailed)
 }

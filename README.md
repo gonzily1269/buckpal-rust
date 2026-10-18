@@ -30,7 +30,7 @@ cargo run
 
 接続プール数とSQLiteのbusy timeoutは`config.toml`で設定でき、対応する環境変数で上書きできます。環境変数はTOMLの値に優先します。設定値は起動時に読み込まれ、TOML解析や型・範囲検証に失敗した場合はエラーで終了します。
 
-画面表示とHTTPエラー応答の文言は [`messages.toml`](./messages.toml) で一元管理し、ビルド時にアプリケーションの実行ファイルへ埋め込みます。実行時に別ファイルを配置する必要はありません。文言を変更した場合はアプリケーションの再ビルドが必要です。必須メッセージの欠落や書式プレースホルダーの不整合、未対応のアラートCSSクラスは起動時にエラーになります。送金結果のクエリ値も定義済みの結果コードに限られ、未知の値はHTTP 400になります。
+画面表示とHTTPエラー応答の文言は、それぞれの画面コンポーネントとHTTPハンドラーに定義しています。文言を変更した場合はアプリケーションの再ビルドが必要です。送金結果のクエリ値は定義済みの結果コードに限られ、未知の値はHTTP 400になります。
 
 ```toml
 [database]
@@ -64,19 +64,18 @@ cargo run
 
 - [アーキテクチャの説明](./docs/ARCHITECTURE.md)
 - `crates/domain`: 金額・口座など、外部技術に依存しないドメインモデル
-- `crates/application`: 送金・ダッシュボード取得ユースケースと入出力ポート
-- `crates/adapters`: SQLiteによるポート実装と残高・履歴の取得
+- `crates/application`: 送金・ダッシュボード取得ユースケースとアプリケーション契約
+- `crates/adapters`: SQLiteによるリポジトリ実装と残高・履歴の取得
 - `crates/web`: AxumのHTTPハンドラー、Leptos SSR画面、画面用ViewModel
-- `src/main.rs`: 設定、具体実装、ユースケースを組み立てるcomposition root
-- `src/config.rs`: TOML設定と環境変数オーバーライドの読み込み・検証
+- `crates/bootstrap/src/main.rs`: 設定、具体実装、ユースケースを組み立てるcomposition root
+- `crates/bootstrap/src/config.rs`: TOML設定と環境変数オーバーライドの読み込み・検証
+- `crates/architecture`: クレート間の依存方向を検査するArchitecture test
 - `config.toml`: 実行時設定の既定値
-- `crates/web/src/messages.rs`: 埋め込みメッセージの解析と検証
-- `messages.toml`: ビルド時に実行ファイルへ埋め込むUI・HTTP応答メッセージ
 - `migrations`: 初期スキーマとデモ口座
 
 画面の`AccountCard`、`TransferForm`、`ActivityList`、`StatusMessage`は独立したLeptosコンポーネントです。UIライブラリはWeb層だけで使用し、ドメイン層・ユースケース層には依存しません。DaisyUIとTailwind CSSのアセットはCDNから読み込むため、画面表示にはインターネット接続が必要です。
 
-送金可否はユースケースがドメインモデルで判断し、SQLiteアダプターはトランザクション内で残高競合を検出して送金と2つの活動記録をまとめて保存します。残高不足や上限超過などの業務エラー、残高更新の競合は画面上に表示され、永続化エラーはHTTP 500とサーバーログで明示されます。
+送金可否はドメインモデルで判断し、SQLiteアダプターは`BEGIN IMMEDIATE`で書き込みロックを取得してから、口座読込・送金検証・送金と2つの活動記録を1回のRepository操作で完了します。残高不足や上限超過などの業務エラーは画面上に表示され、永続化エラーはHTTP 500とサーバーログで明示されます。
 
 ## 検証
 

@@ -1,24 +1,23 @@
-[package]
-name = "buckpal-rust"
-version = "0.1.0"
-edition = "2024"
-
 [workspace]
 resolver = "3"
 members = [
-    ".",
+    "crates/bootstrap",
     "crates/domain",
     "crates/application",
     "crates/adapters",
     "crates/web",
 ]
 default-members = [
-    ".",
+    "crates/bootstrap",
     "crates/domain",
     "crates/application",
     "crates/adapters",
     "crates/web",
 ]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
 
 [workspace.lints.clippy]
 # 個別の lint 設定が all / pedantic の設定より優先されるよう、priority を -1 に設定
@@ -43,30 +42,16 @@ string_slice = "deny"
 # ドキュメントコメント内の Markdown 表記に関する lint は許可する
 doc_markdown = "allow"
 
-[lints]
-workspace = true
-
-[dependencies]
+[workspace.dependencies]
 anyhow = "1"
-any_spawner = "0.3"
+async-trait = "0.1"
 axum = "0.8"
-serde = { version = "1", features = ["derive"] }
-sqlx = { version = "0.9", features = [
-    "macros",
-    "migrate",
-    "runtime-tokio",
-    "sqlite",
-    "tls-rustls-ring-webpki",
-] }
-toml = "1.1"
-tokio = { version = "1", features = [
-    "macros",
-    "net",
-    "rt-multi-thread",
-    "signal",
-] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 buckpal-adapters = { path = "crates/adapters" }
 buckpal-application = { path = "crates/application" }
+buckpal-domain = { path = "crates/domain" }
 buckpal-web = { path = "crates/web" }
+serde = "1"
+sqlx = "0.9"
+thiserror = "2"
+tokio = "1"
+tracing = "0.1"

@@ -17,17 +17,15 @@ use tracing_subscriber::EnvFilter;
 
 use buckpal_adapters::sqlite::SqliteRepository;
 use buckpal_application::{
-    DashboardService, GetDashboardUseCase, LoadDashboardPort, LoadTransferAccountsPort,
-    RecordTransferPort, SendMoneyService, SendMoneyUseCase,
+    DashboardService, GetDashboardUseCase, SendMoneyService, SendMoneyUseCase, TransferRepository,
 };
-use buckpal_web::{AppState, messages::Messages};
+use buckpal_web::AppState;
 use config::Config;
 
 #[tokio::main]
 /// データベースとHTTPサーバーを初期化し、アプリケーションを起動する。
 async fn main() -> Result<()> {
     let config = Config::load()?;
-    let messages = Messages::load()?;
     any_spawner::Executor::init_tokio().context("could not initialize the Leptos executor")?;
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -50,19 +48,13 @@ async fn main() -> Result<()> {
     initialize_database(&pool).await?;
 
     let repository = SqliteRepository::new(pool);
-    let transfer_accounts_port: std::sync::Arc<dyn LoadTransferAccountsPort> = repository.clone();
-    let transfer_record_port: std::sync::Arc<dyn RecordTransferPort> = repository.clone();
-    let dashboard_port: std::sync::Arc<dyn LoadDashboardPort> = repository;
-    let service = SendMoneyService::new(
-        transfer_accounts_port,
-        transfer_record_port,
-        config.transfer_threshold(),
-    );
+    let transfer_repository: std::sync::Arc<dyn TransferRepository> = repository.clone();
+    let service = SendMoneyService::new(transfer_repository, config.transfer_threshold());
     let send_money: std::sync::Arc<dyn SendMoneyUseCase> = std::sync::Arc::new(service);
-    let dashboard_service = DashboardService::new(dashboard_port);
+    let dashboard_service = DashboardService::new(repository);
     let get_dashboard: std::sync::Arc<dyn GetDashboardUseCase> =
         std::sync::Arc::new(dashboard_service);
-    let state = AppState::new(send_money, get_dashboard, messages);
+    let state = AppState::new(send_money, get_dashboard);
     let app = Router::new()
         .route(
             "/",
@@ -119,7 +111,7 @@ async fn shutdown_signal() {
 
 /// 埋め込み済みのSQLxマイグレーションを実行してデータベースを初期化する。
 async fn initialize_database(pool: &SqlitePool) -> Result<()> {
-    sqlx::migrate!()
+    sqlx::migrate!("../../migrations")
         .run(pool)
         .await
         .context("database migrations failed")?;

@@ -4,7 +4,6 @@ use leptos::prelude::*;
 
 use super::{
     PageData, TransferStatus,
-    messages::{Messages, format_message},
     view_model::{AccountView, ActivityView},
 };
 
@@ -15,17 +14,12 @@ pub(super) fn App() -> impl IntoView {
         tracing::error!("page data was not provided during SSR");
         return None;
     };
-    let Some(messages) = use_context::<std::sync::Arc<Messages>>() else {
-        tracing::error!("messages were not provided during SSR");
-        return None;
-    };
-
     Some(view! {
         <html lang="ja" data-theme="light">
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-                <title>{messages.page.title.clone()}</title>
+                <title>"Buckpal | 口座間送金"</title>
                 <link href="https://cdn.jsdelivr.net/npm/daisyui@5.7.50" rel="stylesheet" type="text/css"/>
                 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
             </head>
@@ -33,47 +27,47 @@ pub(super) fn App() -> impl IntoView {
                 <main class="container mx-auto max-w-6xl px-4 sm:px-6">
                     <header class="navbar border-b border-base-300 px-0">
                         <a class="text-2xl font-extrabold tracking-tight text-primary" href="/">
-                            {messages.page.brand.clone()}<span class="text-secondary">{messages.page.brand_suffix.clone()}</span>
+                            "buckpal"<span class="text-secondary">".rust"</span>
                         </a>
                         <div class="badge badge-success badge-outline gap-2">
                             <span class="status status-success"></span>
-                            {messages.page.connection_status.clone()}
+                            "SQLite 接続中"
                         </div>
                     </header>
                     <section class="py-12 sm:py-14">
-                        <p class="mb-3 text-xs font-bold tracking-[0.16em] text-base-content/60">{messages.page.hero_eyebrow.clone()}</p>
-                        <h1 class="text-3xl font-bold tracking-tight text-primary sm:text-4xl">{messages.page.hero_title.clone()}</h1>
-                        <p class="mt-3 text-base text-base-content/70">{messages.page.hero_subtitle.clone()}</p>
+                        <p class="mb-3 text-xs font-bold tracking-[0.16em] text-base-content/60">"PERSONAL FINANCE / DEMO"</p>
+                        <h1 class="text-3xl font-bold tracking-tight text-primary sm:text-4xl">"お金の流れを、シンプルに。"</h1>
+                        <p class="mt-3 text-base text-base-content/70">"口座残高を確認して、安全に送金できます。"</p>
                     </section>
-                    <StatusMessage status=page.status messages=messages.clone()/>
+                    <StatusMessage status=page.status/>
                     <section class="space-y-4">
                         <div class="flex flex-wrap items-end justify-between gap-2">
                             <div>
-                                <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">{messages.page.accounts_eyebrow.clone()}</p>
-                                <h2 class="text-2xl font-semibold">{messages.page.accounts_title.clone()}</h2>
+                                <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"YOUR ACCOUNTS"</p>
+                                <h2 class="text-2xl font-semibold">"口座"</h2>
                             </div>
-                            <span class="badge badge-ghost">{format_message(&messages.page.account_count, &[&page.dashboard.accounts.len().to_string()])}</span>
+                            <span class="badge badge-ghost">{format!("{} ACCOUNTS", page.dashboard.accounts.len())}</span>
                         </div>
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            {page.dashboard.accounts.iter().cloned().map(|account| view! { <AccountCard account=account messages=messages.clone()/> }).collect_view()}
+                            {page.dashboard.accounts.iter().cloned().map(|account| view! { <AccountCard account=account/> }).collect_view()}
                         </div>
                     </section>
                     <section class="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
-                        <TransferForm accounts=page.dashboard.accounts.clone() messages=messages.clone()/>
+                        <TransferForm accounts=page.dashboard.accounts.clone()/>
                         <div class="card bg-base-100 shadow-sm">
                             <div class="card-body">
                                 <div class="mb-2">
-                                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">{messages.page.recent_transfers_eyebrow.clone()}</p>
-                                    <h2 class="card-title">{messages.page.recent_transfers_title.clone()}</h2>
+                                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"RECENT TRANSFERS"</p>
+                                    <h2 class="card-title">"最近の送金"</h2>
                                 </div>
-                                <ActivityList activities=page.dashboard.activities.clone() messages=messages.clone()/>
+                                <ActivityList activities=page.dashboard.activities.clone()/>
                             </div>
                         </div>
                     </section>
                     <footer class="py-8 text-center text-xs tracking-widest text-base-content/50">
-                        {messages.page.footer_brand.clone()}
-                        <span class="px-2">{messages.page.footer_separator.clone()}</span>
-                        {messages.page.footer_caption.clone()}
+                        "BUCKPAL RUST"
+                        <span class="px-2">"·"</span>
+                        "クリーンアーキテクチャの送金デモ"
                     </footer>
                 </main>
             </body>
@@ -83,7 +77,7 @@ pub(super) fn App() -> impl IntoView {
 
 #[component]
 /// 口座名と利用可能残高を表示するDaisyUIカード。
-fn AccountCard(account: AccountView, messages: std::sync::Arc<Messages>) -> impl IntoView {
+fn AccountCard(account: AccountView) -> impl IntoView {
     view! {
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body gap-4">
@@ -93,9 +87,9 @@ fn AccountCard(account: AccountView, messages: std::sync::Arc<Messages>) -> impl
                 </div>
                 <h3 class="text-lg font-semibold">{account.name}</h3>
                 <div class="stat p-0">
-                    <div class="stat-title">{messages.account.balance_label.clone()}</div>
+                    <div class="stat-title">"利用可能残高"</div>
                     <div class="stat-value text-primary">{account.balance}</div>
-                    <div class="stat-desc">{messages.account.units.clone()}</div>
+                    <div class="stat-desc">"units"</div>
                 </div>
             </div>
         </div>
@@ -104,59 +98,48 @@ fn AccountCard(account: AccountView, messages: std::sync::Arc<Messages>) -> impl
 
 #[component]
 /// DaisyUIのフォーム部品を使った送金フォーム。
-fn TransferForm(accounts: Vec<AccountView>, messages: std::sync::Arc<Messages>) -> impl IntoView {
-    let source_options = accounts
-        .iter()
-        .map(|account| {
-            let id = account.id.to_string();
-            let label = format_message(
-                &messages.transfer.account_option,
-                &[&account.name, &account.balance],
-            );
-            view! { <option value=id>{label}</option> }
-        })
-        .collect_view();
-    let target_options = accounts
-        .iter()
-        .map(|account| {
-            let id = account.id.to_string();
-            let name = account.name.clone();
-            view! { <option value=id>{name}</option> }
-        })
-        .collect_view();
-    let amount_placeholder = messages.transfer.amount_placeholder.clone();
-
+fn TransferForm(accounts: Vec<AccountView>) -> impl IntoView {
+    let target_options = || {
+        accounts
+            .iter()
+            .map(|account| {
+                let id = account.id.to_string();
+                let name = account.name.clone();
+                view! { <option value=id>{name}</option> }
+            })
+            .collect_view()
+    };
     view! {
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
                 <div class="mb-2">
-                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">{messages.page.transfer_eyebrow.clone()}</p>
-                    <h2 class="card-title">{messages.transfer.title.clone()}</h2>
-                    <p class="mt-2 text-sm text-base-content/70">{messages.transfer.description.clone()}</p>
+                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"MOVE MONEY"</p>
+                    <h2 class="card-title">"送金する"</h2>
+                    <p class="mt-2 text-sm text-base-content/70">"送金は2口座に記録され、残高へすぐ反映されます。"</p>
                 </div>
                 <form method="post" action="/" class="flex flex-col gap-3">
                     <label class="form-control w-full">
-                        <span class="label-text mb-1">{messages.transfer.source_label.clone()}</span>
+                        <span class="label-text mb-1">"送金元"</span>
                         <select class="select select-bordered w-full" name="source_account_id" required>
-                            {source_options}
+                            {target_options()}
                         </select>
                     </label>
                     <label class="form-control w-full">
-                        <span class="label-text mb-1">{messages.transfer.target_label.clone()}</span>
+                        <span class="label-text mb-1">"送金先"</span>
                         <select class="select select-bordered w-full" name="target_account_id" required>
-                            {target_options}
+                            {target_options()}
                         </select>
                     </label>
                     <label class="form-control w-full">
-                        <span class="label-text mb-1">{messages.transfer.amount_label.clone()}</span>
-                        <input class="input input-bordered w-full" name="amount" type="number" min="1" step="1" placeholder=amount_placeholder required/>
+                        <span class="label-text mb-1">"金額（整数単位）"</span>
+                        <input class="input input-bordered w-full" name="amount" type="number" min="1" step="1" placeholder="例: 500" required/>
                     </label>
                     <button class="btn btn-primary mt-2" type="submit">
-                        {messages.transfer.submit.clone()}
-                        <span aria-hidden="true">{messages.transfer.submit_arrow.clone()}</span>
+                        "送金を確定する"
+                        <span aria-hidden="true">"→"</span>
                     </button>
                 </form>
-                <p class="mt-2 text-xs text-base-content/60">{messages.transfer.hint.clone()}</p>
+                <p class="mt-2 text-xs text-base-content/60">"残高不足・送金上限超過の場合は送金されません。"</p>
             </div>
         </div>
     }
@@ -164,12 +147,9 @@ fn TransferForm(accounts: Vec<AccountView>, messages: std::sync::Arc<Messages>) 
 
 #[component]
 /// 最近の送金履歴を一覧表示する。
-fn ActivityList(
-    activities: Vec<ActivityView>,
-    messages: std::sync::Arc<Messages>,
-) -> impl IntoView {
+fn ActivityList(activities: Vec<ActivityView>) -> impl IntoView {
     if activities.is_empty() {
-        view! { <p class="py-8 text-center text-sm text-base-content/60">{messages.activity.empty.clone()}</p> }.into_any()
+        view! { <p class="py-8 text-center text-sm text-base-content/60">"送金履歴はまだありません。"</p> }.into_any()
     } else {
         view! {
             <ul class="list">
@@ -198,16 +178,36 @@ fn ActivityList(
 
 #[component]
 /// 送金結果コードを利用者向けDaisyUIアラートへ変換する。
-fn StatusMessage(
-    status: Option<TransferStatus>,
-    messages: std::sync::Arc<Messages>,
-) -> impl IntoView {
+fn StatusMessage(status: Option<TransferStatus>) -> impl IntoView {
     match status {
         Some(status) => {
-            let message = messages.status(status);
+            let (class, text) = match status {
+                TransferStatus::Success => ("alert-success", "送金が完了しました。"),
+                TransferStatus::InvalidAmount => {
+                    ("alert-error", "金額は1以上の整数で入力してください。")
+                }
+                TransferStatus::SameAccount => (
+                    "alert-error",
+                    "送金元と送金先には別の口座を選んでください。",
+                ),
+                TransferStatus::Threshold => {
+                    ("alert-error", "送金額が設定された上限を超えています。")
+                }
+                TransferStatus::AccountNotFound => {
+                    ("alert-error", "指定された口座が見つかりません。")
+                }
+                TransferStatus::InsufficientFunds => ("alert-error", "残高が不足しています。"),
+                TransferStatus::BalanceOverflow => {
+                    ("alert-error", "送金後の残高が上限を超えます。")
+                }
+                TransferStatus::ConcurrentUpdate => (
+                    "alert-warning",
+                    "口座残高が更新されました。残高を確認して、もう一度お試しください。",
+                ),
+            };
             view! {
-                <div class=format!("alert {} my-6", message.class.css_class()) role="status">
-                    {message.text.clone()}
+                <div class=format!("alert {} my-6", class) role="status">
+                    {text}
                 </div>
             }
             .into_any()

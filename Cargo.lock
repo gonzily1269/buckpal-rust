@@ -276,7 +276,6 @@ dependencies = [
  "leptos",
  "leptos_axum",
  "serde",
- "toml",
  "tracing",
 ]
 
