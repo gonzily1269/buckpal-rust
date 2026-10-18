@@ -39,8 +39,8 @@ impl SqliteRepository {
         let accounts = accounts
             .into_iter()
             .map(|account| {
-                let id = storage_id(account.id, "account id")?;
-                let balance = storage_amount(account.balance, "account balance")?;
+                let id = storage_id(account.id, "口座ID")?;
+                let balance = storage_amount(account.balance, "口座残高")?;
                 Ok(DashboardAccount {
                     id,
                     name: account.name,
@@ -93,10 +93,10 @@ struct ActivityRow {
 }
 
 fn activity_from_storage(activity: ActivityRow) -> Result<DashboardActivity, sqlx::Error> {
-    let id = storage_id(activity.id, "transfer id")?;
-    let source_account_id = storage_id(activity.source_account_id, "source account id")?;
-    let target_account_id = storage_id(activity.target_account_id, "target account id")?;
-    let amount = storage_amount(activity.amount, "transfer amount")?;
+    let id = storage_id(activity.id, "送金ID")?;
+    let source_account_id = storage_id(activity.source_account_id, "送金元口座ID")?;
+    let target_account_id = storage_id(activity.target_account_id, "送金先口座ID")?;
+    let amount = storage_amount(activity.amount, "送金額")?;
 
     Ok(DashboardActivity {
         id,
@@ -112,7 +112,7 @@ impl TransferRepository for SqliteRepository {
     /// `SQLite`のダッシュボード読込をリポジトリのエラー型へ変換して返す。
     async fn load_dashboard(&self) -> Result<Dashboard, TransferRepositoryError> {
         self.dashboard().await.map_err(|error| {
-            tracing::error!(error = ?error, "failed to load dashboard");
+            tracing::error!(error = ?error, "ダッシュボード情報の読み込みに失敗しました");
             TransferRepositoryError::DashboardLoadFailed
         })
     }
@@ -156,7 +156,7 @@ impl TransferRepository for SqliteRepository {
             Err(error) => {
                 if let Err(rollback_error) = sqlx::query("ROLLBACK").execute(&mut *connection).await
                 {
-                    tracing::error!(error = ?rollback_error, "failed to roll back transfer");
+                    tracing::error!(error = ?rollback_error, "送金のロールバックに失敗しました");
                 }
                 Err(error)
             }
@@ -249,7 +249,7 @@ async fn account_balance(
 
 /// SQLxエラーを、送金リポジトリの技術詳細を隠したエラーへ変換する。
 fn record_error(error: &sqlx::Error) -> TransferRepositoryError {
-    tracing::error!(error = ?error, "failed to record transfer");
+    tracing::error!(error = ?error, "送金の記録に失敗しました");
     TransferRepositoryError::RecordFailed
 }
 
@@ -270,7 +270,7 @@ fn storage_amount(value: i64, name: &str) -> Result<u64, sqlx::Error> {
 }
 
 fn invalid_storage_value(name: &str) -> sqlx::Error {
-    sqlx::Error::Protocol(format!("{name} is outside the supported range"))
+    sqlx::Error::Protocol(format!("{name} が許容範囲を超えています"))
 }
 
 fn database_id_for_record(value: NonZeroU64) -> Result<i64, TransferRepositoryError> {

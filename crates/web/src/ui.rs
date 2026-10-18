@@ -11,7 +11,7 @@ use super::{
 /// 口座残高、送金フォーム、最近の送金履歴を表示するLeptos画面。
 pub(super) fn App() -> impl IntoView {
     let Some(page) = use_context::<PageData>() else {
-        tracing::error!("page data was not provided during SSR");
+        tracing::error!("SSR中に画面データが設定されていません");
         return None;
     };
     Some(view! {
@@ -35,7 +35,7 @@ pub(super) fn App() -> impl IntoView {
                         </div>
                     </header>
                     <section class="py-12 sm:py-14">
-                        <p class="mb-3 text-xs font-bold tracking-[0.16em] text-base-content/60">"PERSONAL FINANCE / DEMO"</p>
+                        <p class="mb-3 text-xs font-bold tracking-[0.16em] text-base-content/60">"家計管理 / デモ"</p>
                         <h1 class="text-3xl font-bold tracking-tight text-primary sm:text-4xl">"お金の流れを、シンプルに。"</h1>
                         <p class="mt-3 text-base text-base-content/70">"口座残高を確認して、安全に送金できます。"</p>
                     </section>
@@ -43,10 +43,10 @@ pub(super) fn App() -> impl IntoView {
                     <section class="space-y-4">
                         <div class="flex flex-wrap items-end justify-between gap-2">
                             <div>
-                                <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"YOUR ACCOUNTS"</p>
+                                <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"口座一覧"</p>
                                 <h2 class="text-2xl font-semibold">"口座"</h2>
                             </div>
-                            <span class="badge badge-ghost">{format!("{} ACCOUNTS", page.dashboard.accounts.len())}</span>
+                            <span class="badge badge-ghost">{format!("{} 口座", page.dashboard.accounts.len())}</span>
                         </div>
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             {page.dashboard.accounts.iter().cloned().map(|account| view! { <AccountCard account=account/> }).collect_view()}
@@ -57,7 +57,7 @@ pub(super) fn App() -> impl IntoView {
                         <div class="card bg-base-100 shadow-sm">
                             <div class="card-body">
                                 <div class="mb-2">
-                                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"RECENT TRANSFERS"</p>
+                                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"最近の送金"</p>
                                     <h2 class="card-title">"最近の送金"</h2>
                                 </div>
                                 <ActivityList activities=page.dashboard.activities.clone()/>
@@ -89,7 +89,7 @@ fn AccountCard(account: AccountView) -> impl IntoView {
                 <div class="stat p-0">
                     <div class="stat-title">"利用可能残高"</div>
                     <div class="stat-value text-primary">{account.balance}</div>
-                    <div class="stat-desc">"units"</div>
+                    <div class="stat-desc">"円"</div>
                 </div>
             </div>
         </div>
@@ -113,7 +113,7 @@ fn TransferForm(accounts: Vec<AccountView>) -> impl IntoView {
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
                 <div class="mb-2">
-                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"MOVE MONEY"</p>
+                    <p class="mb-2 text-xs font-bold tracking-[0.16em] text-base-content/60">"口座間送金"</p>
                     <h2 class="card-title">"送金する"</h2>
                     <p class="mt-2 text-sm text-base-content/70">"送金は2口座に記録され、残高へすぐ反映されます。"</p>
                 </div>

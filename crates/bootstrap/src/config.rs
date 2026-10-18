@@ -50,9 +50,9 @@ impl Config {
         let path = env::var_os("BUCKPAL_CONFIG")
             .map_or_else(|| PathBuf::from("config.toml"), PathBuf::from);
         let contents = fs::read_to_string(&path)
-            .with_context(|| format!("could not read configuration file {}", path.display()))?;
+            .with_context(|| format!("設定ファイルを読み込めません: {}", path.display()))?;
         let mut config: Self = toml::from_str(&contents)
-            .with_context(|| format!("could not parse configuration file {}", path.display()))?;
+            .with_context(|| format!("設定ファイルを解析できません: {}", path.display()))?;
 
         config.apply_overrides(ConfigOverrides::from_environment()?)?;
 
@@ -64,7 +64,7 @@ impl Config {
     fn validate(&self) -> Result<()> {
         ensure!(
             self.database.max_connections > 0,
-            "database.max_connections must be greater than zero"
+            "database.max_connections は1以上で指定してください"
         );
         Ok(())
     }
@@ -80,17 +80,17 @@ impl Config {
         if let Some(value) = overrides.transfer_threshold {
             self.transfer.threshold = value
                 .parse()
-                .context("BUCKPAL_TRANSFER_THRESHOLD must be a non-negative integer")?;
+                .context("BUCKPAL_TRANSFER_THRESHOLD は0以上の整数で指定してください")?;
         }
         if let Some(value) = overrides.max_connections {
             self.database.max_connections = value
                 .parse()
-                .context("BUCKPAL_DB_MAX_CONNECTIONS must be a positive integer")?;
+                .context("BUCKPAL_DB_MAX_CONNECTIONS は1以上の整数で指定してください")?;
         }
         if let Some(value) = overrides.busy_timeout_seconds {
             self.database.busy_timeout_seconds = value
                 .parse()
-                .context("BUCKPAL_DB_BUSY_TIMEOUT_SECONDS must be a non-negative integer")?;
+                .context("BUCKPAL_DB_BUSY_TIMEOUT_SECONDS は0以上の整数で指定してください")?;
         }
         if let Some(value) = overrides.log_filter {
             self.logging.filter = value;
@@ -160,7 +160,7 @@ fn optional_env(name: &str) -> Result<Option<String>> {
         Ok(value) => Ok(Some(value)),
         Err(env::VarError::NotPresent) => Ok(None),
         Err(env::VarError::NotUnicode(_)) => {
-            anyhow::bail!("{name} must contain valid Unicode")
+            anyhow::bail!("{name} の値は有効なUnicode文字列で指定してください")
         }
     }
 }

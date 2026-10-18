@@ -9,8 +9,8 @@ fn creates_transfer_with_expected_and_resulting_balances() {
     type TransferDetails = (NonZeroU64, NonZeroU64, u64, u64, u64, u64, u64);
     let result = (|| -> Result<TransferDetails, String> {
         let source = Account::new(NonZeroU64::MIN, 1_000);
-        let target = Account::new(NonZeroU64::new(2).ok_or("invalid id")?, 500);
-        let amount = NonZeroU64::new(300).ok_or("invalid amount")?;
+        let target = Account::new(NonZeroU64::new(2).ok_or("不正な口座ID")?, 500);
+        let amount = NonZeroU64::new(300).ok_or("不正な金額")?;
         let transfer = Transfer::new(source, target, amount).map_err(|error| error.to_string())?;
         Ok((
             transfer.source_account_id(),
@@ -28,7 +28,7 @@ fn creates_transfer_with_expected_and_resulting_balances() {
         Ok((
             NonZeroU64::MIN,
             NonZeroU64::new(2)
-                .ok_or("invalid id")
+                .ok_or("不正な口座ID")
                 .unwrap_or(NonZeroU64::MIN),
             1_000,
             500,
@@ -44,9 +44,9 @@ fn creates_transfer_with_expected_and_resulting_balances() {
 fn rejects_transfers_that_violate_account_rules() {
     let result = (|| -> Result<(bool, bool, bool), String> {
         let source = Account::new(NonZeroU64::MIN, 100);
-        let target = Account::new(NonZeroU64::new(2).ok_or("invalid id")?, u64::MAX);
-        let one = NonZeroU64::new(1).ok_or("invalid amount")?;
-        let too_much = NonZeroU64::new(101).ok_or("invalid amount")?;
+        let target = Account::new(NonZeroU64::new(2).ok_or("不正な口座ID")?, u64::MAX);
+        let one = NonZeroU64::new(1).ok_or("不正な金額")?;
+        let too_much = NonZeroU64::new(101).ok_or("不正な金額")?;
         Ok((
             matches!(
                 Transfer::new(source.clone(), source.clone(), one),

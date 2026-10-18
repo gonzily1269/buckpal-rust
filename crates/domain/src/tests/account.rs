@@ -8,9 +8,9 @@ fn account_withdrawal_cannot_overdraw() {
     let result = (|| -> Result<(bool, bool, bool, u64), String> {
         let mut account = Account::new(NonZeroU64::MIN, 10);
         Ok((
-            account.withdraw(NonZeroU64::new(11).ok_or("invalid amount")?),
-            account.withdraw(NonZeroU64::new(10).ok_or("invalid amount")?),
-            account.withdraw(NonZeroU64::new(1).ok_or("invalid amount")?),
+            account.withdraw(NonZeroU64::new(11).ok_or("不正な金額")?),
+            account.withdraw(NonZeroU64::new(10).ok_or("不正な金額")?),
+            account.withdraw(NonZeroU64::new(1).ok_or("不正な金額")?),
             account.balance(),
         ))
     })();
@@ -23,10 +23,10 @@ fn account_withdrawal_cannot_overdraw() {
 fn account_deposit_updates_balance() {
     let result = (|| -> Result<(Option<()>, bool, bool, u64), String> {
         let mut account = Account::new(NonZeroU64::MIN, 10);
-        let amount = NonZeroU64::new(5).ok_or("invalid amount")?;
+        let amount = NonZeroU64::new(5).ok_or("不正な金額")?;
         let deposited = account.deposit(amount);
-        let full_balance = NonZeroU64::new(15).ok_or("invalid id")?;
-        let extra_amount = NonZeroU64::new(1).ok_or("invalid amount")?;
+        let full_balance = NonZeroU64::new(15).ok_or("不正な口座ID")?;
+        let extra_amount = NonZeroU64::new(1).ok_or("不正な金額")?;
         Ok((
             deposited,
             account.withdraw(full_balance),

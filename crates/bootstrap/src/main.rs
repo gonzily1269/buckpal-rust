@@ -27,15 +27,15 @@ use config::Config;
 /// データベースとHTTPサーバーを初期化し、アプリケーションを起動する。
 async fn main() -> Result<()> {
     let config = Config::load()?;
-    any_spawner::Executor::init_tokio().context("could not initialize the Leptos executor")?;
+    any_spawner::Executor::init_tokio().context("Leptosの実行環境を初期化できませんでした")?;
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_new(config.log_filter()).context("invalid log filter configuration")?,
+            EnvFilter::try_new(config.log_filter()).context("ログフィルターの設定が無効です")?,
         )
         .init();
 
     let options = SqliteConnectOptions::from_str(config.database_url())
-        .context("DATABASE_URL must be a valid SQLite connection URL")?
+        .context("DATABASE_URLには有効なSQLite接続URLを指定してください")?
         .create_if_missing(true)
         .foreign_keys(true)
         .journal_mode(SqliteJournalMode::Wal)
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         .max_connections(config.max_connections())
         .connect_with(options)
         .await
-        .context("could not connect to SQLite")?;
+        .context("SQLiteに接続できませんでした")?;
 
     initialize_database(&pool).await?;
 
@@ -66,12 +66,12 @@ async fn main() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(config.bind_addr())
         .await
-        .with_context(|| format!("could not bind to {}", config.bind_addr()))?;
-    tracing::info!(address = %listener.local_addr()?, "Buckpal is running");
+        .with_context(|| format!("{}で待ち受けを開始できませんでした", config.bind_addr()))?;
+    tracing::info!(address = %listener.local_addr()?, "Buckpalを起動しました");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .context("HTTP server failed")?;
+        .context("HTTPサーバーでエラーが発生しました")?;
     Ok(())
 }
 
@@ -87,16 +87,16 @@ async fn shutdown_signal() {
                 tokio::select! {
                     result = tokio::signal::ctrl_c() => {
                         if let Err(error) = result {
-                            tracing::error!(error = %error, "failed to listen for Ctrl-C");
+                            tracing::error!(error = %error, "Ctrl-Cシグナルを待機できませんでした");
                         }
                     }
                     _ = terminate.recv() => {}
                 }
             }
             Err(error) => {
-                tracing::error!(error = %error, "failed to register SIGTERM handler");
+                tracing::error!(error = %error, "SIGTERMハンドラーを登録できませんでした");
                 if let Err(error) = tokio::signal::ctrl_c().await {
-                    tracing::error!(error = %error, "failed to listen for Ctrl-C");
+                    tracing::error!(error = %error, "Ctrl-Cシグナルを待機できませんでした");
                 }
             }
         }
@@ -104,10 +104,10 @@ async fn shutdown_signal() {
 
     #[cfg(not(unix))]
     if let Err(error) = tokio::signal::ctrl_c().await {
-        tracing::error!(error = %error, "failed to listen for Ctrl-C");
+        tracing::error!(error = %error, "Ctrl-Cシグナルを待機できませんでした");
     }
 
-    tracing::info!("shutdown signal received; gracefully stopping server");
+    tracing::info!("終了シグナルを受信しました。サーバーを正常に終了します");
 }
 
 /// 埋め込み済みのSQLxマイグレーションを実行してデータベースを初期化する。
@@ -115,6 +115,6 @@ async fn initialize_database(pool: &SqlitePool) -> Result<()> {
     sqlx::migrate!("../../migrations")
         .run(pool)
         .await
-        .context("database migrations failed")?;
+        .context("データベースのマイグレーションに失敗しました")?;
     Ok(())
 }

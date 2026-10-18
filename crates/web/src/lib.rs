@@ -132,7 +132,7 @@ pub async fn submit_transfer(
         Err(SendMoneyError::BalanceOverflow) => TransferStatus::BalanceOverflow,
         Err(SendMoneyError::PersistenceFailure) => {
             return Err(WebError(
-                anyhow!("application use case failed"),
+                anyhow!("アプリケーションのユースケースが失敗しました"),
                 "処理中にエラーが発生しました。サーバーログを確認してください。".to_owned(),
             ));
         }
@@ -147,7 +147,7 @@ pub struct WebError(anyhow::Error, String);
 impl IntoResponse for WebError {
     /// 内部エラー詳細はログに記録し、レスポンスには一般的な案内だけを含める。
     fn into_response(self) -> Response {
-        error!(error = ?self.0, "request failed");
+        error!(error = ?self.0, "リクエストの処理に失敗しました");
         (StatusCode::INTERNAL_SERVER_ERROR, self.1).into_response()
     }
 }

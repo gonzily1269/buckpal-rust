@@ -74,7 +74,7 @@ fn rejects_invalid_environment_overrides() {
     assert!(result.is_err_and(|error| {
         error
             .to_string()
-            .contains("BUCKPAL_DB_MAX_CONNECTIONS must be a positive integer")
+            .contains("BUCKPAL_DB_MAX_CONNECTIONS は1以上の整数で指定してください")
     }));
 }
 
@@ -91,7 +91,7 @@ fn rejects_zero_connection_count() {
     assert!(result.is_err_and(|error| {
         error
             .to_string()
-            .contains("database.max_connections must be greater than zero")
+            .contains("database.max_connections は1以上で指定してください")
     }));
 }
 

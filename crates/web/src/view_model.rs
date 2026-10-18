@@ -57,7 +57,7 @@ impl DashboardView {
 fn account_view(account: DashboardAccount) -> AccountView {
     AccountView {
         id: account.id,
-        id_label: format!("ACCOUNT {:02}", account.id),
+        id_label: format!("口座 {:02}", account.id),
         name: account.name,
         balance: format_amount(account.balance),
     }
