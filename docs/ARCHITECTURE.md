@@ -6,12 +6,12 @@
 %%{init: {"theme": "base", "themeVariables": {"background": "#f8fafc", "mainBkg": "#f8fafc", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#334155", "lineColor": "#94a3b8", "textColor": "#111827", "edgeLabelBackground": "#f8fafc", "fontFamily": "sans-serif"}}}%%
 flowchart TB
     app["app<br/>composition root"]
-    subgraph adapters["外側のアダプター"]
+    subgraph adapters["インターフェースアダプター層"]
         direction LR
         web["web<br/>HTTP / UI"]
         persistence["persistence<br/>SqliteRepository"]
     end
-    subgraph service["service"]
+    subgraph service["アプリケーション層"]
         direction LR
         inputPort["入力ポート<br/>SendMoneyUseCase<br/>GetDashboardUseCase"]
         usecase["ユースケース実装<br/>SendMoneyService<br/>GetDashboardService"]
