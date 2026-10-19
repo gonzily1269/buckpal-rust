@@ -3,7 +3,8 @@
 ## クレートと依存方向
 
 ```mermaid
-flowchart LR
+%%{init: {"theme": "base", "themeVariables": {"background": "#f8fafc", "mainBkg": "#f8fafc", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#334155", "lineColor": "#ffffff", "textColor": "#111827", "edgeLabelBackground": "#f8fafc", "fontFamily": "sans-serif"}}}%%
+flowchart TB
     browser["ブラウザー"]
     app["app<br/>composition root"]
     web["web<br/>HTTP / UI adapter"]
@@ -17,9 +18,9 @@ flowchart LR
     db[("SQLite")]
     domain["domain<br/>Account / Transfer"]
 
-    app -->|"クレート依存"| web
-    app -->|"クレート依存"| usecase
-    app -->|"クレート依存"| persistence
+    app -->|"依存"| web
+    app -->|"依存"| usecase
+    app -->|"依存"| persistence
     web -->|"依存する契約"| inport
     usecase -->|"実装"| inport
     usecase -->|"依存する契約"| outport
@@ -37,12 +38,13 @@ flowchart LR
     app -. "AppStateへ注入" .-> web
     persistence -. "SQL" .-> db
 
-    classDef outer fill:#e8f1fb,stroke:#3973ac,color:#17324d
-    classDef inner fill:#fff2cc,stroke:#b38f00,color:#403300
-    classDef core fill:#e2f0d9,stroke:#548235,color:#243b16
+    classDef outer fill:#e8f1fb,stroke:#1d4ed8,stroke-width:2px,color:#111827
+    classDef inner fill:#fff2cc,stroke:#a16207,stroke-width:2px,color:#111827
+    classDef core fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111827
     class app,web,persistence outer
     class inport,usecase,outport inner
     class domain core
+    linkStyle default stroke:#ffffff,stroke-width:5px
 ```
 
 実線はソースコード上の依存またはtrait実装関係、点線は起動時の注入と実行時の呼び出しを示します。依存性逆転の要点は、外側の`persistence`が内側の`service`所有の`TransferRepository`を実装し、内側のserviceがSQLiteではなくこのポートに依存することです。`web`もserviceの入力ポートだけを呼び出し、具象ユースケースを知りません。
