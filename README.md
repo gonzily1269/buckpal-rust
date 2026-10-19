@@ -65,11 +65,11 @@ cargo run
 - [アーキテクチャの説明](./docs/ARCHITECTURE.md)
 - [ファイル分割・ディレクトリ構成・コーディング規約](./docs/CODING_CONVENTIONS.md)
 - `crates/domain`: 金額・口座など、外部技術に依存しないドメインモデル
-- `crates/application`: 送金・ダッシュボード取得ユースケースとアプリケーション契約
-- `crates/adapters`: SQLiteによるリポジトリ実装と残高・履歴の取得
+- `crates/service`: 送金・ダッシュボード取得ユースケース、DTO、`ports/`配下のリポジトリ契約
+- `crates/repository`: SQLiteによるリポジトリ実装と残高・履歴の取得
 - `crates/web`: AxumのHTTPハンドラー、Leptos SSR画面、画面用ViewModel
-- `crates/bootstrap/src/main.rs`: 設定、具体実装、ユースケースを組み立てるcomposition root
-- `crates/bootstrap/src/config.rs`: TOML設定と環境変数オーバーライドの読み込み・検証
+- `app/src/main.rs`: 設定、具体実装、ユースケースを組み立てるcomposition root
+- `app/src/config.rs`: TOML設定と環境変数オーバーライドの読み込み・検証
 - `crates/architecture`: クレート間の依存方向を検査するArchitecture test
 - `config.toml`: 実行時設定の既定値
 - `migrations`: 初期スキーマとデモ口座

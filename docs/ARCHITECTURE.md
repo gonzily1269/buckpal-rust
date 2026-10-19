@@ -7,21 +7,21 @@
 | レイヤー | 主な場所 | 責務 |
 | --- | --- | --- |
 | ドメイン | `crates/domain/` | `Money`、`Account`などの業務概念と基本ルール |
-| アプリケーション | `crates/application/` | 送金・ダッシュボード取得ユースケース、入出力契約、アプリケーションDTO |
-| アダプター | `crates/adapters/` | SQLite問い合わせ、トランザクション、アプリケーション契約の実装 |
+| サービス | `crates/service/` | 送金・ダッシュボード取得ユースケース、入出力契約、DTO |
+| リポジトリ | `crates/repository/` | SQLite問い合わせ、トランザクション、リポジトリポートの実装 |
 | Webアダプター | `crates/web/` | AxumのHTTP入出力、Leptos SSR画面、ViewModelへの変換 |
-| 起動・構成 | `crates/bootstrap/` (`src/main.rs`) | 設定読込、具体実装の組み立て、サーバー起動 |
+| アプリケーション実行 | `app/` (`src/main.rs`) | 設定読込、具体実装の組み立て、サーバー起動 |
 
 各レイヤーは別々のCargoクレートです。プロジェクト内クレート間のコンパイル時依存は次の向きに限定します。外部ライブラリへの依存は各クレートの責務に閉じ、domain/applicationからWeb・DBフレームワークを参照しません。
 
 ```text
-bootstrap ──▶ web ─────────────▶ application ──▶ domain
-    ├───────▶ adapters ────────▶ application
+app ────────▶ web ─────────────▶ service ──▶ domain
+    ├───────▶ repository ──────▶ service
     │              └───────────────────────────▶ domain
-    └───────▶ application
+    └───────▶ service
 ```
 
-図の矢印はコンパイル時の依存方向です。実行時にはWebアダプターがapplicationのユースケースを呼び、ユースケースがリポジトリ契約を呼びます。SQLiteアダプターがそのリポジトリ契約を実装します。契約と境界DTOは利用側であるapplicationが所有し、`crates/bootstrap/src/main.rs`が具体実装を結び付けます。許可するプロジェクト内依存とdomain/applicationの外部依存は`crates/architecture/tests/architecture.rs`で検査します。
+図の矢印はコンパイル時の依存方向です。実行時にはWebアダプターがserviceのユースケースを呼び、ユースケースが`service/src/ports/`のリポジトリ契約を呼びます。SQLiteリポジトリがその契約を実装します。契約と境界DTOは利用側であるserviceが所有し、`app/src/main.rs`が具体実装を結び付けます。
 
 ## 送金の処理フロー
 
@@ -35,7 +35,7 @@ bootstrap ──▶ web ─────────────▶ application �
 
 ## 依存関係の組み立て
 
-`crates/bootstrap/src/main.rs`が設定を読み込み、SQLite接続プールと`SqliteRepository`を生成します。同じSQLiteアダプターを`TransferRepository`のtrait objectとして`SendMoneyService`／`GetDashboardService`へ渡し、それぞれを`SendMoneyUseCase`／`GetDashboardUseCase`のtrait objectとしてWebの`AppState`へ渡します。具体型を選択するのはこのcomposition rootだけです。
+`app/src/main.rs`が設定を読み込み、SQLite接続プールと`SqliteRepository`を生成します。同じSQLiteアダプターを`TransferRepository`のtrait objectとして`SendMoneyService`／`GetDashboardService`へ渡し、それぞれを`SendMoneyUseCase`／`GetDashboardUseCase`のtrait objectとしてWebの`AppState`へ渡します。具体型を選択するのはこのcomposition rootだけです。
 
 アプリケーションの契約は技術固有の型や低レベルのエラー原因を公開しません。SQLiteアダプターは技術的な原因をログに記録し、リポジトリの抽象エラーを返します。ユースケースはそれを業務エラーまたはアプリケーションの永続化失敗へ変換し、Webアダプターにはリポジトリ固有のエラー型を露出しません。Webは業務結果を画面へ変換し、抽象的なシステム失敗をHTTP 500へ変換します。ロック取得はSQLiteに待機させ、口座読込から記録までを1回のRepository操作で完了させます。
 
@@ -43,12 +43,12 @@ bootstrap ──▶ web ─────────────▶ application �
 
 ## 境界のルール
 
-- `domain`と`application`から外側の`web`、`adapters`をimportしません。
-- Cargo依存グラフは`application → domain`、`adapters → application/domain`、`web → application`、`bootstrap → adapters/application/web`に限定し、`crates/architecture/tests/architecture.rs`で逸脱を検出します。domain/applicationの外部依存も許可リストで制限します。
+- `domain`と`service`から外側の`web`、`repository`をimportしません。
+- Cargo依存グラフは`service → domain`、`repository → service/domain`、`web → service`、`app → repository/service/web`に限定します。
 - WebハンドラーはSQLiteリポジトリやSQLxの型ではなく、`SendMoneyUseCase`／`GetDashboardUseCase`契約とアプリケーションDTOだけを利用します。
-- リポジトリ契約とその入出力型は利用側であるアプリケーション層が所有します。外側のアダプターが実装詳細を提供します。
-- ユースケース契約もアプリケーション層が定義し、WebアダプターはHTTP入力をアプリケーション呼び出しへ変換します。ユースケースの実装型をWeb層へ露出しません。
-- `crates/bootstrap/src/main.rs`をcomposition rootとし、具体アダプターの生成と契約への注入をここに限定します。
+- リポジトリ契約とその入出力型は利用側であるserviceクレートの`ports/`が所有します。repositoryクレートが実装詳細を提供します。
+- ユースケース契約もserviceクレートが定義し、WebアダプターはHTTP入力をservice呼び出しへ変換します。ユースケースの実装型をWeb層へ露出しません。
+- `app/src/main.rs`をcomposition rootとし、具体アダプターの生成と契約への注入をここに限定します。
 - ドメインエンティティの生成時にID・残高などの不変条件を検証し、不正な状態をモデル内に作れないようにします。
 - 契約境界では、技術固有エラーや検証前のプリミティブ値ではなく、ドメイン型（`Money`／成立済みの`Transfer`）と抽象化された失敗型を使います。
 - 設定ファイルや画面メッセージの読み込みは外側で行い、ドメイン・ユースケースへ設定形式やUIライブラリを持ち込みません。

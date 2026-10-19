@@ -1,7 +1,7 @@
 use super::sqlite::SqliteRepository;
 use std::{num::NonZeroU64, sync::Arc};
 
-use buckpal_application::{SendMoneyError, SendMoneyService, TransferRepository};
+use buckpal_service::{SendMoneyError, SendMoneyService, TransferRepository};
 use sqlx::sqlite::SqlitePoolOptions;
 
 fn account_id(id: u64) -> NonZeroU64 {

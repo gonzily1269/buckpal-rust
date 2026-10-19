@@ -6,10 +6,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
 
-use buckpal_application::{
+use buckpal_domain::{Account, Transfer, TransferError};
+use buckpal_service::{
     Dashboard, DashboardAccount, DashboardActivity, TransferRepository, TransferRepositoryError,
 };
-use buckpal_domain::{Account, Transfer, TransferError};
 
 /// SQLiteデータベースに対する口座・送金リポジトリ。
 #[derive(Clone)]

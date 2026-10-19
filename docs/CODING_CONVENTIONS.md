@@ -6,7 +6,8 @@
 
 - application層のユースケースは、入力アダプターが依存するtraitとそのサービス実装を別ファイルにします。
 - ファイル名は操作名を基準とし、traitを`<operation>.rs`、サービス実装を`<operation>_service.rs`に置きます。たとえば`get_dashboard.rs`に`GetDashboardUseCase`、`get_dashboard_service.rs`に`GetDashboardService`を置きます。
-- 機能ごとのモジュールは`crates/application/src/<feature>/`に配置し、`mod.rs`で外部へ公開するAPIを管理します。現在の機能ディレクトリは`transfer/`と`dashboard/`です。
+- ユースケースの機能ごとのモジュールは`crates/service/src/<feature>/`に配置し、`mod.rs`で外部へ公開するAPIを管理します。現在の機能ディレクトリは`transfer/`と`dashboard/`です。
+- リポジトリなど、ユースケースが利用するポート契約は`crates/service/src/ports/`に配置します。具体的な永続化実装は`crates/repository/`に置き、契約を定義する側が依存関係の内側になるようにします。
 - enumは用途や所属レイヤーにかかわらず、1 enumにつき1ファイルへ分けます。ファイル名はenum名の`snake_case`とし、enumに関連する実装も同じファイルに置きます。例: `send_money_error.rs`、`transfer_status.rs`。
 
 ## テストの配置

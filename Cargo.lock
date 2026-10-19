@@ -218,34 +218,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "buckpal-adapters"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "buckpal-application",
- "buckpal-domain",
- "chrono",
- "sqlx",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "buckpal-application"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "buckpal-domain",
- "thiserror 2.0.21",
- "tokio",
-]
-
-[[package]]
 name = "buckpal-domain"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "buckpal-repository"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "buckpal-domain",
+ "buckpal-service",
+ "chrono",
+ "sqlx",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -255,8 +245,8 @@ dependencies = [
  "any_spawner",
  "anyhow",
  "axum",
- "buckpal-adapters",
- "buckpal-application",
+ "buckpal-repository",
+ "buckpal-service",
  "buckpal-web",
  "serde",
  "sqlx",
@@ -267,12 +257,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "buckpal-service"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "buckpal-domain",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "buckpal-web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "buckpal-application",
+ "buckpal-service",
  "leptos",
  "leptos_axum",
  "serde",

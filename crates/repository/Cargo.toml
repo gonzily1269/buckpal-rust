@@ -1,5 +1,5 @@
 [package]
-name = "buckpal-adapters"
+name = "buckpal-repository"
 version.workspace = true
 edition.workspace = true
 autotests = false
@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 async-trait.workspace = true
-buckpal-application.workspace = true
+buckpal-service.workspace = true
 buckpal-domain.workspace = true
 chrono = { version = "0.4", features = ["clock"] }
 sqlx = { workspace = true, features = [

@@ -98,5 +98,5 @@ fn rejects_zero_connection_count() {
 /// リポジトリに含まれる既定設定ファイルが設定型と互換であることを確認する。
 #[test]
 fn parses_the_repository_configuration_file() {
-    assert!(toml::from_str::<Config>(include_str!("../../../../config.toml")).is_ok());
+    assert!(toml::from_str::<Config>(include_str!("../../../config.toml")).is_ok());
 }

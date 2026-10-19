@@ -1,6 +1,6 @@
 //! アプリケーション出力DTOを画面描画用のモデルへ変換する。
 
-use buckpal_application::{Dashboard, DashboardAccount, DashboardActivity};
+use buckpal_service::{Dashboard, DashboardAccount, DashboardActivity};
 
 #[cfg(test)]
 #[path = "tests/view_model.rs"]

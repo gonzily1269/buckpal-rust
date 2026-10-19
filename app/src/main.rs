@@ -15,8 +15,8 @@ use sqlx::{
 };
 use tracing_subscriber::EnvFilter;
 
-use buckpal_adapters::sqlite::SqliteRepository;
-use buckpal_application::{
+use buckpal_repository::sqlite::SqliteRepository;
+use buckpal_service::{
     GetDashboardService, GetDashboardUseCase, SendMoneyService, SendMoneyUseCase,
     TransferRepository,
 };
@@ -112,7 +112,7 @@ async fn shutdown_signal() {
 
 /// 埋め込み済みのSQLxマイグレーションを実行してデータベースを初期化する。
 async fn initialize_database(pool: &SqlitePool) -> Result<()> {
-    sqlx::migrate!("../../migrations")
+    sqlx::migrate!("../migrations")
         .run(pool)
         .await
         .context("データベースのマイグレーションに失敗しました")?;

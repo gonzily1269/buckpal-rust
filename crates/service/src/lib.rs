@@ -3,12 +3,12 @@
 //! この層は具体的なデータベースやWebフレームワークではなく、リポジトリ契約に依存する。
 
 mod dashboard;
+mod ports;
 mod transfer;
 
 pub use dashboard::{
     Dashboard, DashboardAccount, DashboardActivity, GetDashboardError, GetDashboardService,
     GetDashboardUseCase,
 };
-pub use transfer::{
-    SendMoneyError, SendMoneyService, SendMoneyUseCase, TransferRepository, TransferRepositoryError,
-};
+pub use ports::{TransferRepository, TransferRepositoryError};
+pub use transfer::{SendMoneyError, SendMoneyService, SendMoneyUseCase};

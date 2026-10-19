@@ -17,9 +17,7 @@ use serde::Deserialize;
 use std::num::NonZeroU64;
 use tracing::error;
 
-use buckpal_application::{
-    GetDashboardError, GetDashboardUseCase, SendMoneyError, SendMoneyUseCase,
-};
+use buckpal_service::{GetDashboardError, GetDashboardUseCase, SendMoneyError, SendMoneyUseCase};
 
 use view_model::DashboardView;
 

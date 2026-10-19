@@ -1,17 +1,17 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/bootstrap",
+    "app",
     "crates/domain",
-    "crates/application",
-    "crates/adapters",
+    "crates/service",
+    "crates/repository",
     "crates/web",
 ]
 default-members = [
-    "crates/bootstrap",
+    "app",
     "crates/domain",
-    "crates/application",
-    "crates/adapters",
+    "crates/service",
+    "crates/repository",
     "crates/web",
 ]
 
@@ -46,8 +46,8 @@ doc_markdown = "allow"
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
-buckpal-adapters = { path = "crates/adapters" }
-buckpal-application = { path = "crates/application" }
+buckpal-repository = { path = "crates/repository" }
+buckpal-service = { path = "crates/service" }
 buckpal-domain = { path = "crates/domain" }
 buckpal-web = { path = "crates/web" }
 serde = "1"

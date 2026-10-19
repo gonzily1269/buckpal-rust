@@ -8,11 +8,9 @@ use async_trait::async_trait;
 
 use buckpal_domain::{Account, Transfer, TransferError};
 
-use super::super::repository::TransferRepository;
-use super::super::{
-    send_money_error::SendMoneyError, transfer_repository_error::TransferRepositoryError,
-};
+use super::super::send_money_error::SendMoneyError;
 use super::{SendMoneyService, map_repository_error};
+use crate::{TransferRepository, TransferRepositoryError};
 
 #[derive(Default)]
 /// 送金ユースケーステスト用に口座状態と送金記録を保持するfake。

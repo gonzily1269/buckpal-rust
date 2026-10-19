@@ -10,7 +10,7 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-buckpal-application.workspace = true
+buckpal-service.workspace = true
 leptos = { version = "0.8.8", features = ["ssr"] }
 leptos_axum = "0.8.8"
 serde = { workspace = true, features = ["derive"] }

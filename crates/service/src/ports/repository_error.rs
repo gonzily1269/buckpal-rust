@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// 送金リポジトリで発生する、技術詳細を隠したエラー。
+/// リポジトリポートで発生する、技術詳細を隠したエラー。
 #[derive(Debug, Error)]
 pub enum TransferRepositoryError {
     #[error("ダッシュボード情報を読み込めませんでした")]

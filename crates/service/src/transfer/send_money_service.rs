@@ -2,9 +2,9 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 
-use super::repository::TransferRepository;
 use super::send_money::SendMoneyUseCase;
-use super::{send_money_error::SendMoneyError, transfer_repository_error::TransferRepositoryError};
+use super::send_money_error::SendMoneyError;
+use crate::{TransferRepository, TransferRepositoryError};
 
 #[cfg(test)]
 #[path = "tests/send_money_service.rs"]
