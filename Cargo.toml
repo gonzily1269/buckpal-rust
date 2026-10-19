@@ -4,14 +4,14 @@ members = [
     "app",
     "crates/domain",
     "crates/service",
-    "crates/repository",
+    "crates/persistence",
     "crates/web",
 ]
 default-members = [
     "app",
     "crates/domain",
     "crates/service",
-    "crates/repository",
+    "crates/persistence",
     "crates/web",
 ]
 
@@ -46,7 +46,7 @@ doc_markdown = "allow"
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
-buckpal-repository = { path = "crates/repository" }
+buckpal-persistence = { path = "crates/persistence" }
 buckpal-service = { path = "crates/service" }
 buckpal-domain = { path = "crates/domain" }
 buckpal-web = { path = "crates/web" }

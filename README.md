@@ -66,7 +66,7 @@ cargo run
 - [ファイル分割・ディレクトリ構成・コーディング規約](./docs/CODING_CONVENTIONS.md)
 - `crates/domain`: 金額・口座など、外部技術に依存しないドメインモデル
 - `crates/service`: 送金・ダッシュボード取得ユースケース、DTO、`ports/`配下のリポジトリ契約
-- `crates/repository`: SQLiteによるリポジトリ実装と残高・履歴の取得
+- `crates/persistence`: SQLiteによるリポジトリ実装と残高・履歴の取得
 - `crates/web`: AxumのHTTPハンドラー、Leptos SSR画面、画面用ViewModel
 - `app/src/main.rs`: 設定、具体実装、ユースケースを組み立てるcomposition root
 - `app/src/config.rs`: TOML設定と環境変数オーバーライドの読み込み・検証

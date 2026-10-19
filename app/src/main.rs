@@ -15,7 +15,7 @@ use sqlx::{
 };
 use tracing_subscriber::EnvFilter;
 
-use buckpal_repository::sqlite::SqliteRepository;
+use buckpal_persistence::sqlite::SqliteRepository;
 use buckpal_service::{
     GetDashboardService, GetDashboardUseCase, SendMoneyService, SendMoneyUseCase,
     TransferRepository,

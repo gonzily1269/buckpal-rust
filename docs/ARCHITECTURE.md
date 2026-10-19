@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | ドメイン | `crates/domain/` | `Money`、`Account`などの業務概念と基本ルール |
 | サービス | `crates/service/` | 送金・ダッシュボード取得ユースケース、入出力契約、DTO |
-| リポジトリ | `crates/repository/` | SQLite問い合わせ、トランザクション、リポジトリポートの実装 |
+| 永続化 | `crates/persistence/` | SQLite問い合わせ、トランザクション、リポジトリポートの実装 |
 | Webアダプター | `crates/web/` | AxumのHTTP入出力、Leptos SSR画面、ViewModelへの変換 |
 | アプリケーション実行 | `app/` (`src/main.rs`) | 設定読込、具体実装の組み立て、サーバー起動 |
 
@@ -16,7 +16,7 @@
 
 ```text
 app ────────▶ web ─────────────▶ service ──▶ domain
-    ├───────▶ repository ──────▶ service
+    ├───────▶ persistence ────▶ service
     │              └───────────────────────────▶ domain
     └───────▶ service
 ```
@@ -44,9 +44,9 @@ app ────────▶ web ─────────────▶ s
 ## 境界のルール
 
 - `domain`と`service`から外側の`web`、`repository`をimportしません。
-- Cargo依存グラフは`service → domain`、`repository → service/domain`、`web → service`、`app → repository/service/web`に限定します。
+- Cargo依存グラフは`service → domain`、`persistence → service/domain`、`web → service`、`app → persistence/service/web`に限定します。
 - WebハンドラーはSQLiteリポジトリやSQLxの型ではなく、`SendMoneyUseCase`／`GetDashboardUseCase`契約とアプリケーションDTOだけを利用します。
-- リポジトリ契約とその入出力型は利用側であるserviceクレートの`ports/`が所有します。repositoryクレートが実装詳細を提供します。
+- リポジトリ契約とその入出力型は利用側であるserviceクレートの`ports/`が所有します。persistenceクレートが実装詳細を提供します。
 - ユースケース契約もserviceクレートが定義し、WebアダプターはHTTP入力をservice呼び出しへ変換します。ユースケースの実装型をWeb層へ露出しません。
 - `app/src/main.rs`をcomposition rootとし、具体アダプターの生成と契約への注入をここに限定します。
 - ドメインエンティティの生成時にID・残高などの不変条件を検証し、不正な状態をモデル内に作れないようにします。

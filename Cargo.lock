@@ -225,7 +225,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "buckpal-repository"
+name = "buckpal-persistence"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -245,7 +245,7 @@ dependencies = [
  "any_spawner",
  "anyhow",
  "axum",
- "buckpal-repository",
+ "buckpal-persistence",
  "buckpal-service",
  "buckpal-web",
  "serde",

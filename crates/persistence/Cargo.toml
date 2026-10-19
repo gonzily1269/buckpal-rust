@@ -1,5 +1,5 @@
 [package]
-name = "buckpal-repository"
+name = "buckpal-persistence"
 version.workspace = true
 edition.workspace = true
 autotests = false

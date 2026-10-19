@@ -28,6 +28,6 @@ tokio = { workspace = true, features = [
 ] }
 tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-buckpal-repository.workspace = true
+buckpal-persistence.workspace = true
 buckpal-service.workspace = true
 buckpal-web.workspace = true
