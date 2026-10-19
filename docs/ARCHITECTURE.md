@@ -38,13 +38,22 @@ flowchart TB
     app -. "AppStateへ注入" .-> web
     persistence -. "SQL" .-> db
 
-    classDef outer fill:#e8f1fb,stroke:#1d4ed8,stroke-width:2px,color:#111827
-    classDef inner fill:#fff2cc,stroke:#a16207,stroke-width:2px,color:#111827
-    classDef core fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111827
-    class app,web,persistence outer
-    class inport,usecase,outport inner
-    class domain core
-    linkStyle default stroke:#ffffff,stroke-width:5px
+    classDef external fill:#475569,stroke:#1e293b,stroke-width:2px,color:#ffffff
+    classDef composition fill:#6d28d9,stroke:#4c1d95,stroke-width:2px,color:#ffffff
+    classDef inputAdapter fill:#2563eb,stroke:#1e40af,stroke-width:2px,color:#ffffff
+    classDef outputAdapter fill:#0f766e,stroke:#134e4a,stroke-width:2px,color:#ffffff
+    classDef applicationService fill:#c2410c,stroke:#7c2d12,stroke-width:2px,color:#ffffff
+    classDef port fill:#a16207,stroke:#713f12,stroke-width:2px,color:#ffffff
+    classDef domainLayer fill:#15803d,stroke:#14532d,stroke-width:2px,color:#ffffff
+    class browser,db external
+    class app composition
+    class web inputAdapter
+    class persistence outputAdapter
+    class usecase applicationService
+    class inport,outport port
+    class domain domainLayer
+    style service fill:#7c2d12,stroke:#431407,stroke-width:2px,color:#ffffff
+    linkStyle default stroke:#ffffff,stroke-width:3px
 ```
 
 実線はソースコード上の依存またはtrait実装関係、点線は起動時の注入と実行時の呼び出しを示します。依存性逆転の要点は、外側の`persistence`が内側の`service`所有の`TransferRepository`を実装し、内側のserviceがSQLiteではなくこのポートに依存することです。`web`もserviceの入力ポートだけを呼び出し、具象ユースケースを知りません。
