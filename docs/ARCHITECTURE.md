@@ -3,40 +3,30 @@
 ## クレートと依存方向
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "#f8fafc", "mainBkg": "#f8fafc", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#334155", "lineColor": "#ffffff", "textColor": "#111827", "edgeLabelBackground": "#f8fafc", "fontFamily": "sans-serif"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"background": "#f8fafc", "mainBkg": "#f8fafc", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#334155", "lineColor": "#94a3b8", "textColor": "#111827", "edgeLabelBackground": "#f8fafc", "fontFamily": "sans-serif"}}}%%
 flowchart TB
-    browser["ブラウザー"]
     app["app<br/>composition root"]
-    web["web<br/>HTTP / UI adapter"]
-    subgraph service["service — 内側のアプリケーションルール"]
-        direction TB
-        inport["入力ポート<br/>SendMoneyUseCase<br/>GetDashboardUseCase"]
-        usecase["ユースケース実装<br/>SendMoneyService<br/>GetDashboardService"]
-        outport["出力ポート<br/>TransferRepository"]
+    subgraph adapters["外側のアダプター"]
+        direction LR
+        web["web<br/>HTTP / UI"]
+        persistence["persistence<br/>SqliteRepository"]
     end
-    persistence["persistence<br/>SqliteRepository"]
-    db[("SQLite")]
+    subgraph service["service — 内側のアプリケーションルール"]
+        direction LR
+        inputPort["入力ポート<br/>SendMoneyUseCase<br/>GetDashboardUseCase"]
+        usecase["ユースケース実装<br/>SendMoneyService<br/>GetDashboardService"]
+        outputPort["出力ポート<br/>TransferRepository"]
+    end
     domain["domain<br/>Account / Transfer"]
 
-    app -->|"依存"| web
-    app -->|"依存"| usecase
-    app -->|"依存"| persistence
-    web -->|"依存する契約"| inport
-    usecase -->|"実装"| inport
-    usecase -->|"依存する契約"| outport
-    persistence -->|"実装"| outport
-    usecase -->|"業務ルールを利用"| domain
-    persistence -->|"ドメイン型を利用"| domain
-
-    browser -. "HTTP要求" .-> web
-    web -. "ユースケース呼び出し" .-> inport
-    inport -. "動的ディスパッチ" .-> usecase
-    usecase -. "リポジトリ呼び出し" .-> outport
-    outport -. "動的ディスパッチ" .-> persistence
-    app -. "生成・注入" .-> persistence
-    app -. "生成・注入" .-> usecase
-    app -. "AppStateへ注入" .-> web
-    persistence -. "SQL" .-> db
+    app -->|"依存"| adapters
+    app -->|"生成・注入"| usecase
+    web -->|"依存"| inputPort
+    usecase -->|"実装"| inputPort
+    usecase -->|"依存"| outputPort
+    persistence -->|"実装"| outputPort
+    usecase -->|"依存"| domain
+    persistence -->|"依存"| domain
 
     classDef external fill:#475569,stroke:#1e293b,stroke-width:2px,color:#ffffff
     classDef composition fill:#6d28d9,stroke:#4c1d95,stroke-width:2px,color:#ffffff
@@ -45,20 +35,60 @@ flowchart TB
     classDef applicationService fill:#c2410c,stroke:#7c2d12,stroke-width:2px,color:#ffffff
     classDef port fill:#a16207,stroke:#713f12,stroke-width:2px,color:#ffffff
     classDef domainLayer fill:#15803d,stroke:#14532d,stroke-width:2px,color:#ffffff
-    class browser,db external
     class app composition
     class web inputAdapter
     class persistence outputAdapter
     class usecase applicationService
-    class inport,outport port
+    class inputPort,outputPort port
     class domain domainLayer
+    style adapters fill:#e2e8f0,stroke:#64748b,stroke-width:2px,color:#111827
     style service fill:#7c2d12,stroke:#431407,stroke-width:2px,color:#ffffff
-    linkStyle default stroke:#ffffff,stroke-width:3px
+    linkStyle 0,2,4,6,7 stroke:#2563eb,stroke-width:3px
+    linkStyle 1 stroke:#7e22ce,stroke-width:3px
+    linkStyle 3,5 stroke:#16a34a,stroke-width:3px
 ```
 
-実線はソースコード上の依存またはtrait実装関係、点線は起動時の注入と実行時の呼び出しを示します。依存性逆転の要点は、外側の`persistence`が内側の`service`所有の`TransferRepository`を実装し、内側のserviceがSQLiteではなくこのポートに依存することです。`web`もserviceの入力ポートだけを呼び出し、具象ユースケースを知りません。
+この図の**実線**はソースコード上の関係を示します。青は依存、紫は`app`による生成・注入、緑はポートの実装です。外側の`persistence`が内側のserviceで定義された`TransferRepository`を実装し、`web`はserviceの入力ポートに依存します。
 
-`app`は具体型を選び、`Arc<dyn TransferRepository>`とユースケースtrait objectを組み立てて注入します。実行時はユースケースからポートを呼びますが、ソースコード上の依存先は内側の抽象です。`domain`は他の自プロジェクトクレートに依存せず、serviceにもHTTP・SQLx・SQLiteの型を持ち込みません。
+### 実行時の呼び出し
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"background": "#f8fafc", "mainBkg": "#f8fafc", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#334155", "lineColor": "#94a3b8", "textColor": "#111827", "edgeLabelBackground": "#f8fafc", "fontFamily": "sans-serif"}}}%%
+flowchart TB
+    browser["ブラウザー"]
+    webHandler["web<br/>HTTPハンドラー"]
+    inputPort["入力ポート<br/>SendMoneyUseCase"]
+    usecase["service<br/>SendMoneyService"]
+    outputPort["出力ポート<br/>TransferRepository"]
+    sqliteRepo["persistence<br/>SqliteRepository"]
+    database[("SQLite")]
+
+    browser -.->|"HTTP要求"| webHandler
+    webHandler -.->|"ユースケース呼び出し"| inputPort
+    inputPort -.->|"trait object"| usecase
+    usecase -.->|"リポジトリ呼び出し"| outputPort
+    outputPort -.->|"trait object"| sqliteRepo
+    sqliteRepo -.->|"SQL"| database
+
+    classDef external fill:#475569,stroke:#1e293b,stroke-width:2px,color:#ffffff
+    classDef inputAdapter fill:#2563eb,stroke:#1e40af,stroke-width:2px,color:#ffffff
+    classDef outputAdapter fill:#0f766e,stroke:#134e4a,stroke-width:2px,color:#ffffff
+    classDef applicationService fill:#c2410c,stroke:#7c2d12,stroke-width:2px,color:#ffffff
+    classDef port fill:#a16207,stroke:#713f12,stroke-width:2px,color:#ffffff
+    class browser,database external
+    class webHandler inputAdapter
+    class sqliteRepo outputAdapter
+    class usecase applicationService
+    class inputPort,outputPort port
+    linkStyle 0 stroke:#64748b,stroke-width:3px
+    linkStyle 1 stroke:#2563eb,stroke-width:3px
+    linkStyle 2 stroke:#7e22ce,stroke-width:3px
+    linkStyle 3 stroke:#0f766e,stroke-width:3px
+    linkStyle 4 stroke:#16a34a,stroke-width:3px
+    linkStyle 5 stroke:#64748b,stroke-width:3px
+```
+
+この図の**点線**は実行時の呼び出しです。グレーは外部との通信、青はユースケース呼び出し、紫はtrait object経由のディスパッチ、青緑はリポジトリ呼び出し、緑は永続化処理を示します。serviceがポートを呼び、注入済みのSQLite実装が応答します。`app`は`Arc<dyn TransferRepository>`とユースケースtrait objectを組み立ててWebへ注入します。`domain`は他の自プロジェクトクレートに依存せず、serviceにもHTTP・SQLx・SQLiteの型を持ち込みません。
 
 ## ポートの具体例
 
