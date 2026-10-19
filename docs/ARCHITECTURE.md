@@ -1,73 +1,69 @@
 # アーキテクチャ
 
-このプロジェクトは、送金の業務ルールをWebフレームワークやデータベースから分離するため、クリーンアーキテクチャ／ヘキサゴナルアーキテクチャの考え方を取り入れています。中心にドメインとユースケースを置き、外部技術との接続はアダプターが担います。
+## クレートと依存方向
 
-## レイヤーと責務
+```mermaid
+flowchart LR
+    browser["ブラウザー"]
+    app["app<br/>composition root"]
+    web["web<br/>HTTP / UI adapter"]
+    subgraph service["service — 内側のアプリケーションルール"]
+        direction TB
+        inport["入力ポート<br/>SendMoneyUseCase<br/>GetDashboardUseCase"]
+        usecase["ユースケース実装<br/>SendMoneyService<br/>GetDashboardService"]
+        outport["出力ポート<br/>TransferRepository"]
+    end
+    persistence["persistence<br/>SqliteRepository"]
+    db[("SQLite")]
+    domain["domain<br/>Account / Transfer"]
 
-| レイヤー | 主な場所 | 責務 |
-| --- | --- | --- |
-| ドメイン | `crates/domain/` | `Money`、`Account`などの業務概念と基本ルール |
-| サービス | `crates/service/` | 送金・ダッシュボード取得ユースケース、入出力契約、DTO |
-| 永続化 | `crates/persistence/` | SQLite問い合わせ、トランザクション、リポジトリポートの実装 |
-| Webアダプター | `crates/web/` | AxumのHTTP入出力、Leptos SSR画面、ViewModelへの変換 |
-| アプリケーション実行 | `app/` (`src/main.rs`) | 設定読込、具体実装の組み立て、サーバー起動 |
+    app -->|"クレート依存"| web
+    app -->|"クレート依存"| usecase
+    app -->|"クレート依存"| persistence
+    web -->|"依存する契約"| inport
+    usecase -->|"実装"| inport
+    usecase -->|"依存する契約"| outport
+    persistence -->|"実装"| outport
+    usecase -->|"業務ルールを利用"| domain
+    persistence -->|"ドメイン型を利用"| domain
 
-各レイヤーは別々のCargoクレートです。プロジェクト内クレート間のコンパイル時依存は次の向きに限定します。外部ライブラリへの依存は各クレートの責務に閉じ、domain/applicationからWeb・DBフレームワークを参照しません。
+    browser -. "HTTP要求" .-> web
+    web -. "ユースケース呼び出し" .-> inport
+    inport -. "動的ディスパッチ" .-> usecase
+    usecase -. "リポジトリ呼び出し" .-> outport
+    outport -. "動的ディスパッチ" .-> persistence
+    app -. "生成・注入" .-> persistence
+    app -. "生成・注入" .-> usecase
+    app -. "AppStateへ注入" .-> web
+    persistence -. "SQL" .-> db
 
-```text
-app ────────▶ web ─────────────▶ service ──▶ domain
-    ├───────▶ persistence ────▶ service
-    │              └───────────────────────────▶ domain
-    └───────▶ service
+    classDef outer fill:#e8f1fb,stroke:#3973ac,color:#17324d
+    classDef inner fill:#fff2cc,stroke:#b38f00,color:#403300
+    classDef core fill:#e2f0d9,stroke:#548235,color:#243b16
+    class app,web,persistence outer
+    class inport,usecase,outport inner
+    class domain core
 ```
 
-図の矢印はコンパイル時の依存方向です。実行時にはWebアダプターがserviceのユースケースを呼び、ユースケースが`service/src/ports/`のリポジトリ契約を呼びます。SQLiteリポジトリがその契約を実装します。契約と境界DTOは利用側であるserviceが所有し、`app/src/main.rs`が具体実装を結び付けます。
+実線はソースコード上の依存またはtrait実装関係、点線は起動時の注入と実行時の呼び出しを示します。依存性逆転の要点は、外側の`persistence`が内側の`service`所有の`TransferRepository`を実装し、内側のserviceがSQLiteではなくこのポートに依存することです。`web`もserviceの入力ポートだけを呼び出し、具象ユースケースを知りません。
 
-## 送金の処理フロー
+`app`は具体型を選び、`Arc<dyn TransferRepository>`とユースケースtrait objectを組み立てて注入します。実行時はユースケースからポートを呼びますが、ソースコード上の依存先は内側の抽象です。`domain`は他の自プロジェクトクレートに依存せず、serviceにもHTTP・SQLx・SQLiteの型を持ち込みません。
 
-1. `TransferForm`が通常のHTML POSTを`/`へ送信し、Axumの`submit_transfer`がHTTPフォームを`SendMoneyUseCase`入力へ変換します。
-2. `SendMoneyService`は口座ID、同一口座、金額、送金上限を検証し、正の金額をドメイン型`Money`へ変換します。
-3. `TransferRepository`で口座を読み込み、`Account::withdraw`／`Account::deposit`を使って残高不足とオーバーフローをドメイン層で判断します。
-4. 成立した送金はドメイン型`Transfer`として`TransferRepository`へ渡します。SQLiteアダプターは`BEGIN IMMEDIATE`で書き込みロックを先に取得し、ロック中に残高を読み込んで送金と活動記録をまとめてコミットします。ロック取得前に作られた送金スナップショットが古い場合だけ、安全のため競合として拒否します。
-5. Web層はユースケース結果をHTTPのリダイレクトとステータスコードへ変換します。ホーム画面の取得は`GetDashboardUseCase`契約を介し、`GetDashboardService`が`TransferRepository`へ委譲します。Web層は受け取ったアプリケーションDTOをWeb所有のViewModelへ変換し、LeptosはそのViewModelだけを描画します。
+## ポートの具体例
 
-ホーム画面の読み取りはユースケース契約とリポジトリを通ります。Web層は`GetDashboardUseCase`契約のみを呼び、`GetDashboardService`は`TransferRepository`の読み取り操作を利用します。リポジトリの失敗は`GetDashboardError`へ変換され、Web層へ技術固有の失敗型を漏らしません。Web層のHTTPハンドラーは`Dashboard`／`DashboardAccount`／`DashboardActivity` DTOを受け取り、ViewModelへ変換します。SQLx行型やSQLite接続型は知りません。また、Leptos UIはアプリケーションDTOへ直接依存しません。
+送金とダッシュボード取得で、serviceはデータ保存を必要としますが、SQLiteの具体型には依存しません。[`TransferRepository`](../crates/service/src/ports/repository.rs) が必要な操作を定義し、`persistence`の`SqliteRepository`が実装します。永続化の詳細がservice所有の抽象に合わせます。
 
-## 依存関係の組み立て
+同様に、serviceは [`SendMoneyUseCase`](../crates/service/src/transfer/send_money.rs) と `GetDashboardUseCase` を入力ポートとして定義します。`web`はこれらのtraitを呼び出し、具象ユースケースを参照しません。serviceはSQLite・SQLx・HTTPを知りません。
 
-`app/src/main.rs`が設定を読み込み、SQLite接続プールと`SqliteRepository`を生成します。同じSQLiteアダプターを`TransferRepository`のtrait objectとして`SendMoneyService`／`GetDashboardService`へ渡し、それぞれを`SendMoneyUseCase`／`GetDashboardUseCase`のtrait objectとしてWebの`AppState`へ渡します。具体型を選択するのはこのcomposition rootだけです。
+実行時にはserviceが`TransferRepository`を呼びますが、実装の選択と注入は [`app/src/main.rs`](../app/src/main.rs) で行います。ここで`SqliteRepository`を`Arc<dyn TransferRepository>`としてユースケースへ渡し、`SendMoneyService`／`GetDashboardService`をWebへ渡します。ユースケーステストでは、この実装をfakeに差し替えられます。
 
-アプリケーションの契約は技術固有の型や低レベルのエラー原因を公開しません。SQLiteアダプターは技術的な原因をログに記録し、リポジトリの抽象エラーを返します。ユースケースはそれを業務エラーまたはアプリケーションの永続化失敗へ変換し、Webアダプターにはリポジトリ固有のエラー型を露出しません。Webは業務結果を画面へ変換し、抽象的なシステム失敗をHTTP 500へ変換します。ロック取得はSQLiteに待機させ、口座読込から記録までを1回のRepository操作で完了させます。
+## 境界と責務
 
-環境設定は`config.toml`と環境変数で管理します。利用者向け表示文言はWebクレートのコードで管理します。設定の読み込み・解析は外側に置き、ドメインとユースケースにはファイル形式を持ち込みません。
+- `service`は同一口座や送金上限などのユースケース上の検証を行います。送金先・送金元の残高ルールは`domain`のモデルで判断し、SQLite実装は書き込みロック中に残高を読み、検証・記録を同一トランザクションで行います。
+- `persistence`はSQLxの失敗をログに記録して`TransferRepositoryError`へ変換します。serviceはそれをユースケースのエラーへ変換し、webは業務結果や抽象化された失敗をHTTP応答へ変換します。SQLite固有のエラー型は外側に留まります。
+- `web`は`SendMoneyUseCase`／`GetDashboardUseCase`とserviceのDTOを使い、画面表示前にWeb所有のViewModelへ変換します。SQLx行型やSQLite接続型を扱いません。
+- 設定の読込、DB接続・マイグレーション、依存の組み立ては`app`が担います。画面文言は`web`、DBスキーマは`migrations/`が所有します。
 
-## 境界のルール
+## テスト
 
-- `domain`と`service`から外側の`web`、`repository`をimportしません。
-- Cargo依存グラフは`service → domain`、`persistence → service/domain`、`web → service`、`app → persistence/service/web`に限定します。
-- WebハンドラーはSQLiteリポジトリやSQLxの型ではなく、`SendMoneyUseCase`／`GetDashboardUseCase`契約とアプリケーションDTOだけを利用します。
-- リポジトリ契約とその入出力型は利用側であるserviceクレートの`ports/`が所有します。persistenceクレートが実装詳細を提供します。
-- ユースケース契約もserviceクレートが定義し、WebアダプターはHTTP入力をservice呼び出しへ変換します。ユースケースの実装型をWeb層へ露出しません。
-- `app/src/main.rs`をcomposition rootとし、具体アダプターの生成と契約への注入をここに限定します。
-- ドメインエンティティの生成時にID・残高などの不変条件を検証し、不正な状態をモデル内に作れないようにします。
-- 契約境界では、技術固有エラーや検証前のプリミティブ値ではなく、ドメイン型（`Money`／成立済みの`Transfer`）と抽象化された失敗型を使います。
-- 設定ファイルや画面メッセージの読み込みは外側で行い、ドメイン・ユースケースへ設定形式やUIライブラリを持ち込みません。
-- WebクレートはアプリケーションDTOを直接HTMLへ埋め込まず、Web所有のViewModelへ変換してから描画します。
-- 残高不足・残高オーバーフローなどの送金可否はユースケースがドメインモデルを用いて判断し、DBトランザクション境界と書き込みロックは永続化アダプターが担います。
-- HTTPステータス、フォームデコード、リダイレクトはWebアダプターで扱い、アプリケーション層へHTTP型を持ち込みません。
-- リポジトリ由来の技術境界エラーはユースケースでアプリケーション結果へ変換し、入力アダプターにリポジトリ固有のエラー型を知らせません。
-
-この分離により、ユースケースはfakeリポジトリでSQLiteを起動せずにテストでき、SQLiteアダプターもHTTPやLeptosを知らずに契約を実装できます。Webアダプターもアプリケーションの契約に対してテスト可能です。
-
-## テスト方針
-
-- ドメインのテストで、正の金額、引き出し、入金などのルールを確認します。
-- アプリケーションのユースケーステストでは、リポジトリのspy/fakeを用いて入力検証とリポジトリ呼び出しを確認します。
-- SQLiteアダプターのテストでは、インメモリSQLiteと実際のマイグレーションを使い、送金後の残高・履歴と失敗時のロールバックを確認します。
-- 設定とメッセージのテストで、TOMLの必須項目やメッセージ書式を検証します。
-
-テストの実行:
-
-```powershell
-cargo test --workspace
-```
+ユースケースはfakeリポジトリでSQLiteなしにテストし、永続化はインメモリSQLiteと実マイグレーションで検証します。全テストは`cargo test --workspace`で実行します。
